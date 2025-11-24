@@ -3,48 +3,82 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Recuperar contraseña</title>
+  <title>Restablecer contraseña</title>
   <link rel="stylesheet" href="../css/styles.css">
-  <script src="../../config.js"></script>
+  <!-- Ajustado según la imagen: carpeta pages y scripts son hermanas -->
+  <script src="../scripts/config.js"></script>
 </head>
 <body>
   <div class="card">
-    <h1>Recuperar contraseña</h1>
-    <p class="small">Introduce tu correo y te enviaremos un link para restablecer la contraseña.</p>
+    <h1>Restablecer contraseña</h1>
+    <p class="small">Ingresa tu correo y la nueva contraseña.</p>
+    
     <form id="forgotForm">
       <label>Email
-        <input type="email" name="email" required>
+        <input type="email" name="email" required placeholder="ejemplo@correo.com">
       </label>
-      <button type="submit">Enviar link</button>
+      
+      <label>Nueva Contraseña
+        <input type="password" name="password" required placeholder="********">
+      </label>
+
+      <label>Confirmar Contraseña
+        <input type="password" name="confirm" required placeholder="********">
+      </label>
+      
+      <button type="submit">Cambiar contraseña</button>
     </form>
+
     <div class="msg" id="msg"></div>
-    <div class="help"><a href="signup.html">Crear cuenta</a> • <a href="login.html">Iniciar sesión</a></div>
+    <div class="help">
+        <a href="signup.html">Crear cuenta</a> • <a href="login.html">Iniciar sesión</a>
+    </div>
   </div>
 
   <script>
     const form = document.getElementById('forgotForm');
     const msg = document.getElementById('msg');
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      msg.textContent = '';
+      msg.textContent = 'Procesando...';
+      msg.style.color = '#666';
+      
       const data = Object.fromEntries(new FormData(form).entries());
+
+      // Validación simple en frontend antes de enviar
+      if(data.password !== data.confirm) {
+          msg.textContent = 'Las contraseñas no coinciden';
+          msg.style.color = 'crimson';
+          return;
+      }
+
       try {
-        const res = await fetch((window.BACKEND_URL || '') + '/api/forgot', {
+        const res = await fetch((window.BACKEND_URL || 'http://localhost:3000') + '/api/forgot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
+
+        const body = await res.json();
+
         if (res.ok) {
-          msg.textContent = 'Si el correo existe, se enviará un link de recuperación.';
+          msg.textContent = body.message || 'Contraseña cambiada con éxito';
           msg.style.color = 'green';
+          
+          // Deshabilitar el formulario para evitar doble envío
           form.reset();
+          Array.from(form.elements).forEach(el => el.disabled = true);
+
+          // Esperar 1.5s y redirigir al login
+          setTimeout(() => location.href = 'login.html', 1500);
         } else {
-          const body = await res.json();
-          msg.textContent = body.error || 'Error';
+          msg.textContent = body.error || 'Error al cambiar la contraseña';
           msg.style.color = 'crimson';
         }
       } catch (err) {
-        msg.textContent = 'Error de red';
+        console.error(err);
+        msg.textContent = 'Error de conexión con el servidor';
         msg.style.color = 'crimson';
       }
     });
