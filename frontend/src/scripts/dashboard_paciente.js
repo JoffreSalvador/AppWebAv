@@ -65,14 +65,30 @@ async function cargarExamenes(id) {
         data.forEach(ex => {
             const card = document.createElement('div');
             card.className = 'exam-card';
+
             card.innerHTML = `
                 <h3>${ex.TipoExamen}</h3>
-                <p class="exam-date">${new Date(ex.FechaRealizacion).toLocaleDateString()}</p>
-                <p><strong>Obs:</strong> ${ex.ObservacionesResultados || 'Sin observaciones'}</p>
-                <a href="${ex.RutaArchivo}" target="_blank" class="btn-download">Ver Archivo</a>
+
+                <p><strong>Fecha Consulta:</strong> 
+                    ${ex.FechaConsulta ? new Date(ex.FechaConsulta).toLocaleDateString() : '—'}
+                </p>
+
+                <p><strong>Fecha Examen:</strong> 
+                    ${new Date(ex.FechaExamen).toLocaleDateString()}
+                </p>
+
+                <p><strong>Observaciones / Resultados:</strong> 
+                    ${ex.ObservacionesResultados || 'Sin observaciones'}
+                </p>
+
+                <a href="${ex.RutaArchivo}" target="_blank" class="btn-download">
+                    Ver Archivo
+                </a>
             `;
+
             grid.appendChild(card);
         });
+
     } catch (error) {
         console.error('Error cargando exámenes:', error);
     }

@@ -221,6 +221,47 @@ app.get('/api/paciente/:id/consultas', async (req, res) => {
   }
 });
 
+// GET /api/paciente/:id/examenes
+app.get('/api/paciente/:id/examenes', async (req, res) => {
+  try {
+    const pacienteId = parseInt(req.params.id);
+
+    if (!pacienteId)
+      return res.status(400).json({ error: "ID inválido" });
+
+    // MOCK (si está activo)
+    if (useMock) {
+      return res.json([]); 
+    }
+
+    if (!pool)
+      return res.status(503).json({ error: "DB no conectada" });
+
+    const r = await pool.request()
+      .input("PacienteID", sql.Int, pacienteId)
+      .query(`
+        SELECT 
+            E.ExamenID,
+            E.TipoExamen,
+            E.FechaRealizacion AS FechaExamen,
+            E.ObservacionesResultados,
+            E.RutaArchivo,
+            C.FechaConsulta
+        FROM Examenes E
+        LEFT JOIN Consultas C ON C.ConsultaID = E.ConsultaID
+        WHERE E.PacienteID = @PacienteID
+        ORDER BY FechaExamen DESC
+      `);
+
+    return res.json(r.recordset);
+
+  } catch (err) {
+    console.error("examenes error", err);
+    return res.status(500).json({ error: "Error interno" });
+  }
+});
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend API listening on ${PORT}`));
