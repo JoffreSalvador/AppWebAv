@@ -173,5 +173,60 @@ app.post('/api/reset', async (req, res) => {
   }
 });
 
+// POST /api/login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+    // ---------------- MOCK MODE ----------------
+    if (useMock) {
+      const user = mock.users.find(
+        u => u.Email.toLowerCase() === email.toLowerCase()
+      );
+      if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+      const ok = await bcrypt.compare(password, user.PasswordHash);
+      if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+      return res.json({
+        ok: true,
+        usuarioId: user.UsuarioID,
+        rolId: user.RolID,
+        token: uuidv4()  // token simulado
+      });
+    }
+
+    // ---------------- REAL DB MODE ----------------
+    if (!pool)
+      return res.status(503).json({ error: 'DB no conectada' });
+
+    const r = await pool.request()
+      .input('Email', sql.NVarChar(100), email)
+      .query('SELECT UsuarioID, PasswordHash, RolID FROM Usuarios WHERE Email = @Email');
+
+    if (!r.recordset.length)
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    const row = r.recordset[0];
+    const ok = await bcrypt.compare(password, row.PasswordHash);
+    if (!ok)
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    // Respuesta final
+    return res.json({
+      ok: true,
+      usuarioId: row.UsuarioID,
+      rolId: row.RolID,
+      token: uuidv4() // en futuro puedes usar JWT
+    });
+
+  } catch (err) {
+    console.error('login error', err);
+    return res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend API listening on ${PORT}`));
