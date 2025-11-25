@@ -239,5 +239,13 @@ async function guardarExamen(e) {
 
 function logout() {
     localStorage.clear();
-    window.location.href = '../login.html';
+   localStorage.removeItem('token');
+    localStorage.removeItem('usuarioId');
+    localStorage.removeItem('rolId');
+    localStorage.removeItem('pacienteId');
+    localStorage.removeItem('nombreUsuario');
+    
+    // 2. Redirigir
+    // Como dashboard_paciente.html y login.html están en la misma carpeta ("pages"):
+    window.location.href = "login.html"; 
 }

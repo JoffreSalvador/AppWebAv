@@ -1,9 +1,11 @@
 const express = require('express');
+const cors = require('cors');
 const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // Configuración de conexión a SQL Server (ajustar con variables de entorno)
@@ -371,5 +373,103 @@ app.post('/api/pacientes', async (req, res) => {
     return res.status(501).json({ error: "Implementar creación completa con Transacción SQL (Usuario + Paciente)" });
 });
 
+
+// POST /api/login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+
+    // --- MODO MOCK (Sin BD) ---
+    if (useMock) {
+      const user = mock.users.find(u => u.Email.toLowerCase() === email.toLowerCase());
+      if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+      // Verificar password
+      const ok = await bcrypt.compare(password, user.PasswordHash);
+      if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+      // Buscar datos adicionales (Nombre, IDs)
+      let pacienteId = null;
+      let medicoId = null;
+      let nombreUsuario = 'Usuario';
+
+      if (user.RolID === 2) { // Paciente
+        const p = mock.patients.find(x => x.UsuarioID === user.UsuarioID);
+        if (p) {
+           pacienteId = p.PacienteID;
+           nombreUsuario = `${p.Nombre} ${p.Apellido}`;
+        }
+      } 
+      // Si fuera médico en mock, aquí iría la lógica similar...
+
+      return res.json({
+        ok: true,
+        usuarioId: user.UsuarioID,
+        rolId: user.RolID,
+        pacienteId,
+        medicoId,
+        nombreUsuario,
+        token: uuidv4()
+      });
+    }
+
+    // --- MODO SQL SERVER ---
+    if (!pool) return res.status(503).json({ error: 'DB no conectada' });
+
+    // 1. Buscar usuario por Email
+    const r = await pool.request()
+      .input('Email', sql.NVarChar(100), email)
+      .query('SELECT UsuarioID, PasswordHash, RolID FROM Usuarios WHERE Email = @Email');
+
+    if (!r.recordset.length) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    const row = r.recordset[0];
+    
+    // 2. Verificar contraseña
+    const ok = await bcrypt.compare(password, row.PasswordHash);
+    if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+
+    // 3. Obtener datos específicos según el rol
+    let pacienteId = null;
+    let medicoId = null;
+    let nombreUsuario = null;
+
+    if (row.RolID === 2) { // Paciente
+       const pRes = await pool.request()
+         .input('UsuarioID', sql.Int, row.UsuarioID)
+         .query('SELECT PacienteID, Nombre, Apellido FROM Pacientes WHERE UsuarioID = @UsuarioID');
+       
+       if (pRes.recordset.length) {
+         pacienteId = pRes.recordset[0].PacienteID;
+         nombreUsuario = `${pRes.recordset[0].Nombre} ${pRes.recordset[0].Apellido}`;
+       }
+    } else if (row.RolID === 1) { // Médico
+       const mRes = await pool.request()
+         .input('UsuarioID', sql.Int, row.UsuarioID)
+         .query('SELECT MedicoID, Nombre, Apellido FROM Medicos WHERE UsuarioID = @UsuarioID');
+
+       if (mRes.recordset.length) {
+         medicoId = mRes.recordset[0].MedicoID;
+         nombreUsuario = `Dr. ${mRes.recordset[0].Nombre} ${mRes.recordset[0].Apellido}`;
+       }
+    }
+
+    // 4. Responder al Frontend
+    return res.json({
+      ok: true,
+      usuarioId: row.UsuarioID,
+      rolId: row.RolID,
+      pacienteId,
+      medicoId,
+      nombreUsuario,
+      token: uuidv4()
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend API listening on ${PORT}`));
