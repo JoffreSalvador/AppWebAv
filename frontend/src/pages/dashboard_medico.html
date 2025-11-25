@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../css/dashboard.css">
     <!-- Font Awesome para los iconos -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
+
     <!-- IMPORTANTE: Configuración del servidor (Sin esto no guarda) -->
     <script src="../scripts/config.js"></script>
 </head>
@@ -29,6 +29,10 @@
             <nav>
                 <button class="nav-btn active" onclick="showView('pacientes')">
                     <i class="fas fa-user-injured"></i> Pacientes
+                </button>
+
+                <button class="nav-btn" onclick="showView('chat')">
+                    <i class="fas fa-comments"></i> Chat Global
                 </button>
 
                 <button class="nav-btn logout" onclick="logout()">
@@ -83,7 +87,7 @@
                     style="margin-bottom: 20px; background-color: #fff; border: 1px solid var(--primary); color: var(--primary);">
                     <i class="fas fa-arrow-left"></i> Regresar al Tablero
                 </button>
-                
+
                 <div class="exam-card" style="border-left: 4px solid var(--primary);">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
@@ -99,6 +103,28 @@
                 <h3 style="margin: 20px 0 10px; font-size: 18px; color: var(--text-muted);">Historia Clínica</h3>
                 <div id="historiaClinicaContainer"></div>
             </section>
+
+            <!-- VISTA CHAT -->
+            <section id="view-chat" class="content-section hidden">
+                <div class="section-title-row">
+                    <h2>Sala de Chat</h2>
+                    <span style="font-size:13px; color:#666">Conectado como <strong
+                            id="chatUserDisplay"></strong></span>
+                </div>
+
+                <div class="chat-container">
+                    <div id="chatMessages">
+                        <!-- Los mensajes aparecen aquí -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Escribe un mensaje..." autocomplete="off">
+                        <button class="btn-primary" onclick="enviarMensajeChat()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+            
         </main>
     </div>
 
@@ -107,34 +133,33 @@
         <div class="modal-content">
             <span class="close-modal" onclick="cerrarModales()">&times;</span>
             <h2>Registrar Consulta</h2>
-            
+
             <!-- El ID 'formConsulta' es clave, el JS lo busca para leer el submit -->
             <form id="formConsulta">
                 <input type="hidden" name="id" id="editConsultaId">
-                
+
                 <div class="form-group">
                     <label>Motivo</label>
                     <input type="text" name="motivo" required placeholder="Ej. Dolor de cabeza">
                 </div>
-                
+
                 <div class="form-group">
                     <label>Síntomas</label>
                     <textarea name="sintomas" rows="2"></textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Diagnóstico</label>
                     <input type="text" name="diagnostico" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Tratamiento</label>
                     <textarea name="tratamiento" rows="3" required></textarea>
                 </div>
-                
+
                 <!-- Botón Centrado y funcionando -->
-                <button type="submit" class="btn-primary"
-                    style="display: block; width: 50%; margin: 20px auto;">
+                <button type="submit" class="btn-primary" style="display: block; width: 50%; margin: 20px auto;">
                     Guardar
                 </button>
             </form>
@@ -149,7 +174,7 @@
             <form id="formExamen">
                 <input type="hidden" name="id" id="editExamenId">
                 <input type="hidden" name="consultaId" id="inputConsultaIdExamen">
-                
+
                 <div class="form-group">
                     <label>Tipo</label>
                     <select name="tipo" required>
@@ -158,12 +183,12 @@
                         <option>Ecografía</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Observaciones</label>
                     <textarea name="observaciones" rows="2"></textarea>
                 </div>
-                
+
                 <button type="submit" class="btn-primary" style="width:100%">Guardar</button>
             </form>
         </div>
@@ -172,4 +197,5 @@
     <!-- Asegúrate que dashboard_medico.js es el que te envié en la respuesta anterior -->
     <script src="../scripts/dashboard_medico.js"></script>
 </body>
+
 </html>

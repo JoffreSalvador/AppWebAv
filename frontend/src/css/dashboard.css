@@ -436,3 +436,81 @@ small { display: block; margin-top: 4px; color: var(--text-muted); }
     font-weight: 700;
     color: var(--text-main);
 }
+
+/* --- CHAT STYLES --- */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 180px); /* Ajuste para que quepa en pantalla */
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+#chatMessages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background-color: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-input-area {
+    padding: 15px;
+    background: #fff;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input-area input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    outline: none;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    font-size: 14px;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* Mensajes de OTROS (Izquierda) */
+.message-bubble.incoming {
+    background: #fff;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+/* MIS Mensajes (Derecha) */
+.message-bubble.outgoing {
+    background: var(--primary-light); /* Azul claro */
+    color: var(--text-main);
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+
+.msg-sender {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    display: block;
+}
+
+.msg-time {
+    font-size: 10px;
+    color: #888;
+    float: right;
+    margin-left: 10px;
+    margin-top: 5px;
+}

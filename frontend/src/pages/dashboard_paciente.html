@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="../css/dashboard.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <aside class="sidebar">
@@ -21,6 +23,10 @@
                 </button>
                 <button class="nav-btn" onclick="showSection('examenes')">
                     <i class="fas fa-file-medical"></i> Mis Exámenes
+                </button>
+
+                <button class="nav-btn" onclick="showSection('chat')">
+                    <i class="fas fa-comments"></i> Chat Global
                 </button>
                 <button class="nav-btn logout" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
@@ -48,7 +54,7 @@
                             </tr>
                         </thead>
                         <tbody id="consultasBody">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
                 <p id="noConsultasMsg" class="hidden empty-msg">No hay consultas registradas.</p>
@@ -57,12 +63,36 @@
             <section id="examenes-section" class="content-section hidden">
                 <h2><i class="fas fa-microscope"></i> Resultados de Exámenes</h2>
                 <div class="cards-grid" id="examenesGrid">
-                    </div>
+                </div>
                 <p id="noExamenesMsg" class="hidden empty-msg">No hay exámenes registrados.</p>
             </section>
+
+            <!-- VISTA CHAT -->
+            <section id="view-chat" class="content-section hidden">
+                <div class="section-title-row">
+                    <h2>Sala de Chat</h2>
+                    <span style="font-size:13px; color:#666">Conectado como <strong
+                            id="chatUserDisplay"></strong></span>
+                </div>
+
+                <div class="chat-container">
+                    <div id="chatMessages">
+                        <!-- Los mensajes aparecen aquí -->
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Escribe un mensaje..." autocomplete="off">
+                        <button class="btn-primary" onclick="enviarMensajeChat()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+
         </main>
     </div>
 
     <script src="../scripts/dashboard_paciente.js"></script>
 </body>
+
 </html>

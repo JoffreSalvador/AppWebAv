@@ -3,6 +3,7 @@ const cors = require('cors');
 const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+const WebSocket = require('ws');
 
 const app = express();
 app.use(cors());
@@ -632,5 +633,52 @@ app.delete('/api/examenes/:id', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==========================================
+// CONFIGURACIÓN WEBSOCKET + SERVIDOR HTTP
+// ==========================================
+const http = require('http');
+
+
+// 1. Crear servidor HTTP usando la app de Express
+const server = http.createServer(app);
+
+// 2. Crear servidor WebSocket montado sobre el servidor HTTP
+const wss = new WebSocket.Server({ server });
+
+// 3. Lógica del Chat (Broadcast)
+wss.on('connection', (ws) => {
+    console.log('Cliente de chat conectado');
+
+    ws.on('message', (data) => {
+        try {
+            // Reenviar el mensaje a todos los clientes conectados
+            // Data es un Buffer, lo convertimos a String
+            const messageData = JSON.parse(data.toString());
+            
+            // Agregamos timestamp del servidor
+            const broadcastMsg = JSON.stringify({
+                username: messageData.username,
+                text: messageData.text,
+                rol: messageData.rol, // Opcional: para saber si es médico o paciente
+                timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            });
+
+            wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(broadcastMsg);
+                }
+            });
+        } catch (error) {
+            console.error('Error procesando mensaje WS:', error);
+        }
+    });
+
+    ws.on('close', () => console.log('Cliente desconectado'));
+});
+
+// ==========================================
+// INICIAR SERVIDOR
+// ==========================================
+// IMPORTANTE: Usamos server.listen en lugar de app.listen
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Backend API listening on ${PORT}`));
+server.listen(PORT, () => console.log(`Backend API + Chat WS corriendo en puerto ${PORT}`));

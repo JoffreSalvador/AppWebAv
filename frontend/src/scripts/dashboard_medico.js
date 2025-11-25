@@ -34,14 +34,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- NAVEGACIÓN DE VISTAS ---
 function showView(viewName) {
+    // 1. Ocultar TODAS las secciones primero (Aquí te faltaba ocultar el chat)
     document.getElementById('view-pacientes').classList.add('hidden');
     document.getElementById('view-detalle').classList.add('hidden');
+    
+    const chatView = document.getElementById('view-chat');
+    if(chatView) chatView.classList.add('hidden'); // <--- IMPORTANTE: Ocultar chat al cambiar
 
+    // 2. Quitar clase 'active' de todos los botones del menú sidebar
+    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+
+    // 3. Mostrar la vista seleccionada y activar su botón
     if (viewName === 'pacientes') {
         document.getElementById('view-pacientes').classList.remove('hidden');
+        // Activar botón visualmente
+        const btn = document.querySelector("button[onclick=\"showView('pacientes')\"]");
+        if(btn) btn.classList.add('active');
+        
         cargarPacientes();
-    } else if (viewName === 'detalle') {
+    } 
+    else if (viewName === 'detalle') {
         document.getElementById('view-detalle').classList.remove('hidden');
+        // (La vista detalle no tiene botón en el sidebar, así que no activamos nada)
+    }
+    else if (viewName === 'chat') {
+        if(chatView) chatView.classList.remove('hidden');
+        
+        const btn = document.querySelector("button[onclick=\"showView('chat')\"]");
+        if(btn) btn.classList.add('active');
+        
+        iniciarChat(); 
+    } 
+    
+    // OPCIONAL: Si quieres que el chat se DESCONECTE REALMENTE al salir de la pestaña:
+    if (viewName !== 'chat' && ws) {
+        // ws.close(); // Descomenta esto si quieres que se desconecte el socket al cambiar de pestaña
+        // ws = null;
     }
 }
 
@@ -332,4 +360,112 @@ async function eliminarExamen(id) {
 function logout() {
     sessionStorage.clear();
     window.location.href = '../pages/login.html'; 
+}
+
+// ==========================================
+// LÓGICA DE CHAT (WEBSOCKET)
+// ==========================================
+let ws = null;
+const chatInput = document.getElementById('chatInput');
+const messagesContainer = document.getElementById('chatMessages');
+
+// Modificar tu función 'showView' o 'showSection' existente para conectar al abrir
+// EJEMPLO: (Ajusta según tu función actual)
+/* 
+function showView(viewName) {
+    // ... tu lógica de ocultar/mostrar ...
+    if (viewName === 'chat') {
+        document.getElementById('view-chat').classList.remove('hidden');
+        iniciarChat(); // <--- AGREGAR ESTO
+    }
+}
+*/
+
+// Agrega esta lógica al 'DOMContentLoaded' o llámala cuando entres a la vista
+function iniciarChat() {
+    const nombreUsuario = sessionStorage.getItem('nombreUsuario');
+    const rolId = sessionStorage.getItem('rolId');
+    
+    // Mostrar nombre en la cabecera del chat
+    const displayUser = document.getElementById('chatUserDisplay');
+    if(displayUser) displayUser.textContent = nombreUsuario;
+
+    // Evitar reconexiones si ya existe
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return; 
+    }
+
+    // Conectar al mismo host/puerto del backend
+    // Si estás en localhost:3000, esto conecta a ws://localhost:3000
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${location.host.split(':')[0]}:3000`; 
+
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+        console.log('Conectado al Chat WS');
+        appendSystemMessage('Te has unido al chat.');
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        appendMessage(data);
+    };
+
+    ws.onclose = () => {
+        console.log('Desconectado del Chat');
+        appendSystemMessage('Desconectado. Intentando reconectar...', true);
+        setTimeout(iniciarChat, 5000); // Reintento automático
+    };
+}
+
+function enviarMensajeChat() {
+    if (!chatInput.value.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const nombreUsuario = sessionStorage.getItem('nombreUsuario');
+    
+    const msg = {
+        username: nombreUsuario,
+        text: chatInput.value.trim(),
+        rol: sessionStorage.getItem('rolId') // 1 medico, 2 paciente
+    };
+
+    ws.send(JSON.stringify(msg));
+    chatInput.value = '';
+    chatInput.focus();
+}
+
+// Renderizar mensaje en pantalla
+function appendMessage(msgData) {
+    const miNombre = sessionStorage.getItem('nombreUsuario');
+    const esMio = msgData.username === miNombre;
+    
+    const div = document.createElement('div');
+    div.className = `message-bubble ${esMio ? 'outgoing' : 'incoming'}`;
+    
+    div.innerHTML = `
+        <span class="msg-sender">${esMio ? 'Tú' : msgData.username}</span>
+        ${msgData.text}
+        <span class="msg-time">${msgData.timestamp}</span>
+    `;
+
+    messagesContainer.appendChild(div);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight; // Auto-scroll al final
+}
+
+function appendSystemMessage(text, isError = false) {
+    const div = document.createElement('div');
+    div.style.textAlign = 'center';
+    div.style.fontSize = '12px';
+    div.style.margin = '10px 0';
+    div.style.color = isError ? 'red' : '#888';
+    div.textContent = text;
+    messagesContainer.appendChild(div);
+}
+
+// Enviar con Enter
+if(chatInput){
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') enviarMensajeChat();
+    });
 }
