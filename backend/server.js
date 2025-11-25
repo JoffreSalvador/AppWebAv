@@ -140,139 +140,51 @@ app.post('/api/signup', async (req, res) => {
   }
 });
 
-
-
-// POST /api/forgot (CAMBIO DIRECTO DE CONTRASEÑA)
+// POST /api/forgot - Cambio directo de contraseña
 app.post('/api/forgot', async (req, res) => {
   try {
-    const { email, password, nombre, apellido, fechaNacimiento, identificacion, telefono } = req.body;
-    if (!email || !password || !nombre || !apellido || !fechaNacimiento || !identificacion) {
-      return res.status(400).json({ error: 'Faltan campos requeridos' });
-    }
-    if (useMock) {
-      // mock signup
-      if (mock.users.find(u => u.Email.toLowerCase() === String(email).toLowerCase())) {
-        return res.status(409).json({ error: 'El correo o identificador ya existe' });
-      }
-      const hashed = await bcrypt.hash(password, 10);
-      const usuarioId = mock.nextUserId++;
-      mock.users.push({ UsuarioID: usuarioId, Email: email, PasswordHash: hashed, RolID: 2 });
-      const pacienteId = mock.nextPacienteId++;
-      mock.patients.push({ PacienteID: pacienteId, UsuarioID: usuarioId, Nombre: nombre, Apellido: apellido, FechaNacimiento: fechaNacimiento, Identificacion: identificacion, TelefonoContacto: telefono || null });
-      return res.json({ ok: true, usuarioId });
+    // 1. Recibimos email y la nueva password desde el formulario
+    const { email, password } = req.body;
+
+    // Validación básica
+    if (!email || !password) {
+      return res.status(400).json({ error: 'El email y la nueva contraseña son requeridos' });
     }
 
-    if (!pool) return res.status(503).json({ error: 'DB no conectada' });
-
+    // 2. Encriptamos la nueva contraseña
     const hashed = await bcrypt.hash(password, 10);
-    const tx = new sql.Transaction(pool);
-    await tx.begin();
-    try {
-      const r = await new sql.Request(tx)
-        .input('Email', sql.NVarChar(100), email)
-        .input('PasswordHash', sql.NVarChar(255), hashed)
-        .input('RolID', sql.Int, 2)
-        .query(`INSERT INTO Usuarios (Email, PasswordHash, RolID) OUTPUT INSERTED.UsuarioID VALUES (@Email,@PasswordHash,@RolID)`);
-      const usuarioId = r.recordset[0].UsuarioID;
-      await new sql.Request(tx)
-        .input('UsuarioID', sql.Int, usuarioId)
-        .input('Nombre', sql.NVarChar(50), nombre)
-        .input('Apellido', sql.NVarChar(50), apellido)
-        .input('FechaNacimiento', sql.Date, fechaNacimiento)
-        .input('Identificacion', sql.NVarChar(20), identificacion)
-        .input('TelefonoContacto', sql.NVarChar(20), telefono || null)
-        .query('INSERT INTO Pacientes (UsuarioID, Nombre, Apellido, FechaNacimiento, Identificacion, TelefonoContacto) VALUES (@UsuarioID,@Nombre,@Apellido,@FechaNacimiento,@Identificacion,@TelefonoContacto)');
-      await tx.commit();
-      return res.json({ ok: true, usuarioId });
-    } catch (err) {
-      try { await tx.rollback(); } catch (e) {}
-      if (err && err.number === 2627) return res.status(409).json({ error: 'El correo o identificador ya existe' });
-      console.error('signup error', err.message || err);
-      return res.status(500).json({ error: 'Error interno' });
-    }
 
-    if (!pool) return res.status(503).json({ error: 'DB no conectada' });
-
-    const r = await pool.request()
-      .input('Email', sql.NVarChar(100), email)
-      .query('SELECT UsuarioID, PasswordHash, RolID FROM Usuarios WHERE Email = @Email');
-
-    if (!r.recordset.length)
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-
-    const row = r.recordset[0];
-    const ok = await bcrypt.compare(password, row.PasswordHash);
-    if (!ok)
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-
-    // Buscar pacienteId y nombreUsuario solo si rol es paciente
-    let pacienteId = null;
-    let medicoId = null;
-    let nombreUsuario = null;
-
-    if (row.RolID === 2) { // Paciente
-        const pRes = await pool.request().input('UsuarioID', sql.Int, row.UsuarioID).query('SELECT PacienteID, Nombre, Apellido FROM Pacientes WHERE UsuarioID = @UsuarioID');
-        if (pRes.recordset.length) {
-            pacienteId = pRes.recordset[0].PacienteID;
-            nombreUsuario = `${pRes.recordset[0].Nombre} ${pRes.recordset[0].Apellido}`;
-        }
-    } else if (row.RolID === 1) { // Médico
-        const mRes = await pool.request().input('UsuarioID', sql.Int, row.UsuarioID).query('SELECT MedicoID, Nombre, Apellido FROM Medicos WHERE UsuarioID = @UsuarioID');
-        if (mRes.recordset.length) {
-            medicoId = mRes.recordset[0].MedicoID;
-            nombreUsuario = `Dr. ${mRes.recordset[0].Nombre} ${mRes.recordset[0].Apellido}`;
-        }
-    }
-
-    return res.json({
-        ok: true,
-        usuarioId: row.UsuarioID,
-        rolId: row.RolID,
-        pacienteId, 
-        medicoId,
-        nombreUsuario,
-        token: uuidv4()
-    });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Error interno' });
-  }
-});
-
-// POST /api/forgot
-app.post('/api/forgot', async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email requerido' });
+    // --- MODO MOCK (Si no hay base de datos conectada) ---
     if (useMock) {
       const user = mock.users.find(u => u.Email.toLowerCase() === String(email).toLowerCase());
-      if (!user) return res.json({ ok: true });
-      const usuarioId = user.UsuarioID;
-      const token = uuidv4();
-      const expira = new Date(Date.now() + 1000 * 60 * 60);
-      mock.resetTokens.push({ Token: token, UsuarioID: usuarioId, Expira: expira.toISOString() });
-      const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const resetLink = `${baseUrl.replace(/:\d+$/, ':8000')}/reset.html?token=${token}`; // point to frontend served on 8000 for demo
-      console.log('Reset link (mock):', resetLink);
-      return res.json({ ok: true });
+      if (!user) {
+        return res.status(404).json({ error: 'Usuario no encontrado (Mock)' });
+      }
+      user.PasswordHash = hashed; // Actualizamos en memoria
+      return res.json({ ok: true, message: 'Contraseña actualizada correctamente' });
     }
 
-    if (!pool) return res.status(503).json({ error: 'DB no conectada' });
+    // --- MODO SQL SERVER ---
+    if (!pool) return res.status(503).json({ error: 'Base de datos no conectada' });
 
-    const r = await pool.request().input('Email', sql.NVarChar(100), email).query('SELECT UsuarioID FROM Usuarios WHERE Email = @Email');
-    if (!r.recordset.length) return res.json({ ok: true });
-    const usuarioId = r.recordset[0].UsuarioID;
-    const token = uuidv4();
-    const expira = new Date(Date.now() + 1000 * 60 * 60);
-    await pool.request().input('Token', sql.NVarChar(100), token).input('UsuarioID', sql.Int, usuarioId).input('Expira', sql.DateTime, expira).query('INSERT INTO ResetTokens (Token, UsuarioID, Expira) VALUES (@Token,@UsuarioID,@Expira)');
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-    const resetLink = `${baseUrl}/reset.html?token=${token}`; // point to frontend reset page
-    console.log('Reset link (simulado):', resetLink);
-    return res.json({ ok: true });
+    // 3. Ejecutamos el UPDATE directo en la tabla Usuarios
+    // Usamos rowCount o rowsAffected para saber si existía el usuario
+    const result = await pool.request()
+        .input('Email', sql.NVarChar(100), email)
+        .input('PasswordHash', sql.NVarChar(255), hashed) // Tu BD define NVARCHAR(255)
+        .query(`UPDATE Usuarios SET PasswordHash = @PasswordHash WHERE Email = @Email`);
+
+    // Verificamos si se actualizó alguna fila
+    if (result.rowsAffected[0] === 0) {
+        return res.status(404).json({ error: 'No existe ninguna cuenta con este correo' });
+    }
+
+    // 4. Éxito
+    return res.json({ ok: true, message: 'Contraseña cambiada con éxito' });
+
   } catch (err) {
-    console.error('forgot error', err.message || err);
-    return res.status(500).json({ error: 'Error interno' });
+    console.error('Error en /api/forgot:', err.message || err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
