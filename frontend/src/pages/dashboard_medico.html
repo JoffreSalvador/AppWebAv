@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Médico - Gestión Clínica</title>
+    <link rel="stylesheet" href="../css/dashboard_paciente.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="profile-section">
+                <div class="avatar" style="background-color: #28a745;"><i class="fas fa-user-md"></i></div>
+                <h3 id="doctorName">Cargando...</h3>
+                <p>Médico Tratante</p>
+            </div>
+            <nav>
+                <button class="nav-btn active" onclick="showView('pacientes')">
+                    <i class="fas fa-users"></i> Mis Pacientes
+                </button>
+                <button class="nav-btn logout" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header>
+                <h1>Gestión Clínica</h1>
+                <span id="currentDate"></span>
+            </header>
+
+            <section id="view-pacientes" class="content-section">
+                <div class="section-title-row">
+                    <h2>Directorio de Pacientes</h2>
+                    </div>
+                
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Identificación</th>
+                                <th>Paciente</th>
+                                <th>Edad</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaPacientesBody">
+                            </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="view-detalle" class="content-section hidden">
+                <button onclick="showView('pacientes')" class="btn-secondary" style="margin-bottom:15px">
+                    <i class="fas fa-arrow-left"></i> Volver al listado
+                </button>
+
+                <div class="exam-card" style="margin-bottom: 20px; border-left-color: #28a745;">
+                    <h2 id="detallePacienteNombre" style="margin:0">Nombre Paciente</h2>
+                    <p id="detallePacienteId" style="color: #666; margin: 5px 0 0 0;">ID: --</p>
+                </div>
+
+                <div class="section-title-row">
+                    <h3><i class="fas fa-file-medical-alt"></i> Historia Clínica (Consultas)</h3>
+                    <button class="btn-primary" onclick="abrirModalConsulta()">
+                        <i class="fas fa-plus"></i> Nueva Consulta
+                    </button>
+                </div>
+
+                <div id="historiaClinicaContainer">
+                    </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modalConsulta" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModales()">&times;</span>
+            <h2>Registrar Consulta</h2>
+            <form id="formConsulta">
+                <div class="form-group">
+                    <label>Motivo de Consulta</label>
+                    <input type="text" name="motivo" required placeholder="Ej. Dolor abdominal">
+                </div>
+                <div class="form-group">
+                    <label>Síntomas</label>
+                    <textarea name="sintomas" rows="2" placeholder="Describe los síntomas..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Diagnóstico</label>
+                    <input type="text" name="diagnostico" required>
+                </div>
+                <div class="form-group">
+                    <label>Tratamiento / Receta</label>
+                    <textarea name="tratamiento" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%">Guardar Consulta</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalExamen" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModales()">&times;</span>
+            <h2>Solicitar/Subir Examen</h2>
+            <p style="font-size:0.8rem; color:#666">Vinculado a la consulta seleccionada</p>
+            <form id="formExamen">
+                <input type="hidden" name="consultaId" id="inputConsultaIdExamen">
+                <div class="form-group">
+                    <label>Tipo de Examen</label>
+                    <select name="tipo" required>
+                        <option value="Laboratorio - Sangre">Laboratorio - Sangre</option>
+                        <option value="Rayos X">Rayos X</option>
+                        <option value="Ecografía">Ecografía</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <textarea name="observaciones" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Archivo (Simulado)</label>
+                    <input type="file" disabled style="background:#eee">
+                    <small>Subida deshabilitada en demo</small>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%">Guardar Examen</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="../scripts/dashboard_medico.js"></script>
+</body>
+</html>
