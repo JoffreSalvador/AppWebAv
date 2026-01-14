@@ -40,12 +40,9 @@ function Login() {
         // Redirección (Usamos navigate de React en lugar de window.location)
         setTimeout(() => {
           if (body.user.rol === 1) { // 1 = Medico
-             // Como aún no tenemos la página dashboard en React, pondremos un placeholder
-             alert("Redirigiendo a Dashboard Médico (Próximamente)");
-             // navigate('/dashboard-medico'); 
+            navigate('/dashboard-medico');
           } else {
-             alert("Redirigiendo a Dashboard Paciente (Próximamente)");
-             // navigate('/dashboard-paciente');
+            navigate('/dashboard-paciente');
           }
         }, 1000);
 
