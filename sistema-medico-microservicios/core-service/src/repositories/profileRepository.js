@@ -69,4 +69,42 @@ const getPacienteByUsuarioId = async (usuarioId) => {
     return result.recordset[0]; // Retorna el primer resultado o undefined
 };
 
-module.exports = { createMedico, getPacientesByMedico, createPaciente, getPacienteByUsuarioId };
+// Obtener lista de todos los médicos (para el dropdown de transferencia)
+const getAllMedicos = async () => {
+    const pool = await getConnection();
+    const result = await pool.request()
+        .query('SELECT MedicoID, Nombre, Apellido, Especialidad FROM Medicos');
+    return result.recordset;
+};
+
+// Actualizar datos del paciente (incluye reasignación de médico)
+const updatePaciente = async (id, data) => {
+    const pool = await getConnection();
+    const result = await pool.request()
+        .input('ID', sql.Int, id)
+        .input('MedicoID', sql.Int, data.medicoId)
+        .input('Nombre', sql.NVarChar, data.nombre)
+        .input('Apellido', sql.NVarChar, data.apellido)
+        .input('FechaNacimiento', sql.Date, data.fechaNacimiento)
+        .input('Identificacion', sql.NVarChar, data.identificacion)
+        .input('TipoSangre', sql.NVarChar, data.tipoSangre)
+        .input('Direccion', sql.NVarChar, data.direccion)
+        .input('TelefonoContacto', sql.NVarChar, data.telefono)
+        .input('Alergias', sql.NVarChar, data.alergias)
+        .query(`
+            UPDATE Pacientes
+            SET MedicoID = @MedicoID,
+                Nombre = @Nombre,
+                Apellido = @Apellido,
+                FechaNacimiento = @FechaNacimiento,
+                Identificacion = @Identificacion,
+                TipoSangre = @TipoSangre,
+                Direccion = @Direccion,
+                TelefonoContacto = @TelefonoContacto,
+                Alergias = @Alergias
+            WHERE PacienteID = @ID
+        `);
+    return result;
+};
+
+module.exports = { createMedico, getPacientesByMedico, createPaciente, getPacienteByUsuarioId, getAllMedicos, updatePaciente };

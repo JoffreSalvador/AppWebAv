@@ -1,3 +1,4 @@
+// src/controllers/profileController.js
 const profileRepo = require('../repositories/profileRepository');
 
 const createMedicoProfile = async (req, res) => {
@@ -66,4 +67,25 @@ const getMyProfile = async (req, res) => {
     }
 };
 
-module.exports = { createMedicoProfile, getMyPacientes, createPacienteProfile, getMyProfile };
+const getMedicosList = async (req, res) => {
+    try {
+        const medicos = await profileRepo.getAllMedicos();
+        res.json(medicos);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener médicos' });
+    }
+};
+
+const updatePacienteProfile = async (req, res) => {
+    try {
+        const { id } = req.params; // ID del paciente a editar
+        // data trae: nombre, apellido, medicoId, alergias, etc.
+        await profileRepo.updatePaciente(id, req.body);
+        res.json({ message: 'Paciente actualizado correctamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error al actualizar paciente' });
+    }
+};
+
+module.exports = { createMedicoProfile, getMyPacientes, createPacienteProfile, getMyProfile, getMedicosList, updatePacienteProfile };

@@ -1,3 +1,4 @@
+// src/pages/DashboardMedico.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
