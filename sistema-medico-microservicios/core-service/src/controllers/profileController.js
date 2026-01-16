@@ -88,4 +88,21 @@ const updatePacienteProfile = async (req, res) => {
     }
 };
 
-module.exports = { createMedicoProfile, getMyPacientes, createPacienteProfile, getMyProfile, getMedicosList, updatePacienteProfile };
+const validateRegistryData = async (req, res) => {
+    try {
+        const { identificacion, licencia } = req.body;
+        
+        const result = await profileRepo.checkUniqueData(identificacion, licencia);
+        
+        if (result.exists) {
+            return res.status(409).json({ message: `El valor de ${result.field} ya está registrado en el sistema.` });
+        }
+
+        res.status(200).json({ message: 'Datos válidos' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error validando datos' });
+    }
+};
+
+module.exports = { createMedicoProfile, getMyPacientes, createPacienteProfile, getMyProfile, getMedicosList, updatePacienteProfile, validateRegistryData };

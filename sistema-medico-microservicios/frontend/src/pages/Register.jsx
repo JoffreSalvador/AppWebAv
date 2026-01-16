@@ -16,7 +16,7 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMsg('Creando cuenta...');
+    setMsg('Verificando datos...'); // Feedback visual inicial
     setMsgColor('#606770');
 
     const formData = new FormData(e.target);
@@ -24,8 +24,12 @@ function Register() {
     const rolId = rolValue === 'medico' ? 1 : 2;
     const email = formData.get('email');
     const password = formData.get('password');
+    
+    // Datos clave para validar
+    const identificacion = formData.get('identificacion');
+    const licencia = isMedico ? formData.get('numeroLicencia') : null;
 
-    // Validación básica
+    // Validación básica Local
     if (password.length < 6) {
         setMsg('La contraseña debe tener al menos 6 caracteres.');
         setMsgColor('#dc2626');
@@ -34,8 +38,29 @@ function Register() {
 
     try {
       // ----------------------------------------------
+      // PASO 0: PRE-VALIDACIÓN (Core Service) - ¡LO NUEVO!
+      // ----------------------------------------------
+      // Preguntamos a Core si la cédula o licencia ya existen ANTES de crear el usuario.
+      const resVal = await fetch(`${API_URL}/api/core/validate-registry`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identificacion, licencia })
+      });
+
+      const bodyVal = await resVal.json();
+
+      if (!resVal.ok) {
+          // Si devuelve error (409 Conflict), detenemos todo aquí.
+          // El usuario NO se crea en Auth, evitando el problema.
+          throw new Error(bodyVal.message || 'Error de validación de datos.');
+      }
+
+      // ----------------------------------------------
       // PASO 1: Registrar Usuario (Auth Service)
       // ----------------------------------------------
+      // Si llegamos aquí, los datos son únicos. Procedemos.
+      setMsg('Creando cuenta...');
+      
       const resAuth = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,11 +73,11 @@ function Register() {
         throw new Error(bodyAuth.message || 'Error al registrar usuario.');
       }
 
-      setMsg('Usuario creado. Iniciando sesión para configurar perfil...');
-      setMsgColor('#1877f2'); // Azul de progreso
+      setMsg('Usuario creado. Configurando perfil...');
+      setMsgColor('#1877f2');
 
       // ----------------------------------------------
-      // PASO 2: Auto-Login para obtener Token (Auth Service)
+      // PASO 2: Auto-Login (Auth Service)
       // ----------------------------------------------
       const resLogin = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
@@ -63,14 +88,11 @@ function Register() {
       const bodyLogin = await resLogin.json();
       if (!resLogin.ok) throw new Error('Error al iniciar sesión automática.');
 
-      const token = bodyLogin.token; // ¡TENEMOS LA LLAVE!
+      const token = bodyLogin.token;
 
       // ----------------------------------------------
       // PASO 3: Crear Perfil (Core Service)
       // ----------------------------------------------
-      setMsg('Guardando tus datos personales...');
-      
-      // Preparamos datos según el rol
       let profileUrl = '';
       let profileData = {};
 
@@ -99,14 +121,15 @@ function Register() {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` // Usamos el token recién obtenido
+            'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(profileData)
       });
 
       if (!resProfile.ok) {
-          console.error(await resProfile.text()); // Para debug
-          throw new Error('El usuario se creó, pero hubo error al guardar el perfil.');
+          // Esto es muy raro que pase ahora gracias a la pre-validación del Paso 0.
+          console.error(await resProfile.text());
+          throw new Error('Error crítico al guardar el perfil.');
       }
 
       // ----------------------------------------------
@@ -115,15 +138,15 @@ function Register() {
       setMsg('¡Cuenta configurada con éxito! Redirigiendo...');
       setMsgColor('#42b72a');
       
-      // Guardar token en sesión para que ya entre logueado
       sessionStorage.setItem('token', token);
       sessionStorage.setItem('usuarioId', bodyLogin.user.id);
       sessionStorage.setItem('email', bodyLogin.user.email);
       sessionStorage.setItem('rolId', bodyLogin.user.rol);
 
       setTimeout(() => {
-          // Aquí redirigiremos al dashboard cuando lo tengamos
-          navigate('/'); // Por ahora volvemos al login o home
+          if (bodyLogin.user.rol === 1) navigate('/dashboard-medico');
+          else if (bodyLogin.user.rol === 2) navigate('/dashboard-paciente');
+          else if (bodyLogin.user.rol === 3) navigate('/dashboard-admin');
       }, 1500);
 
     } catch (err) {

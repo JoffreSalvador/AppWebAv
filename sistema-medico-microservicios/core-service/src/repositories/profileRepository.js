@@ -108,4 +108,35 @@ const updatePaciente = async (id, data) => {
     return result;
 };
 
-module.exports = { createMedico, getPacientesByMedico, createPaciente, getPacienteByUsuarioId, getAllMedicos, updatePaciente };
+const checkUniqueData = async (identificacion, licencia) => {
+    const pool = await getConnection();
+    
+    // 1. Verificar Identificación (En Medicos Y Pacientes)
+    // Usamos UNION para buscar en ambas tablas a la vez
+    const idCheck = await pool.request()
+        .input('Identificacion', sql.NVarChar, identificacion)
+        .query(`
+            SELECT 1 FROM Medicos WHERE Identificacion = @Identificacion
+            UNION
+            SELECT 1 FROM Pacientes WHERE Identificacion = @Identificacion
+        `);
+
+    if (idCheck.recordset.length > 0) {
+        return { exists: true, field: 'Identificación' };
+    }
+
+    // 2. Verificar Licencia (Solo si se envió una)
+    if (licencia) {
+        const licCheck = await pool.request()
+            .input('Licencia', sql.NVarChar, licencia)
+            .query(`SELECT 1 FROM Medicos WHERE NumeroLicencia = @Licencia`);
+        
+        if (licCheck.recordset.length > 0) {
+            return { exists: true, field: 'Número de Licencia' };
+        }
+    }
+
+    return { exists: false };
+};
+
+module.exports = { createMedico, getPacientesByMedico, createPaciente, getPacienteByUsuarioId, getAllMedicos, updatePaciente, checkUniqueData };
