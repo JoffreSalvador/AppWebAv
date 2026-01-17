@@ -12,39 +12,43 @@ const serviceAccount = require('../config/firebase-admin-key.json');
 require('dotenv').config();
 
 const resetPassword = async (req, res) => {
-    const { email, currentPassword, newPassword } = req.body;
+    // Quitamos 'currentPassword' de los datos recibidos
+    const { email, newPassword } = req.body;
 
     try {
         const pool = await getConnection();
 
-        // 1. Buscar usuario
+        // 1. Verificar que el usuario exista
         const result = await pool.request()
             .input('email', sql.VarChar, email)
-            .query('SELECT * FROM Usuarios WHERE Email = @email');
+            .query('SELECT UsuarioID FROM Usuarios WHERE Email = @email');
 
         const dbUser = result.recordset[0];
         if (!dbUser) return res.status(404).json({ message: "Usuario no encontrado" });
 
-        // 2. Validar contraseña actual con bcrypt
-        const isMatch = await bcrypt.compare(currentPassword, dbUser.PasswordHash);
-        if (!isMatch) {
-            return res.status(401).json({ message: "La contraseña actual es incorrecta." });
-        }
+        // --- ELIMINADO: El paso de validar la contraseña actual con bcrypt ---
 
-        // 3. Hashear la nueva y guardar
+        // 2. Generar el nuevo Hash para la nueva contraseña
         const salt = await bcrypt.genSalt(10);
         const newHash = await bcrypt.hash(newPassword, salt);
 
+        // 3. Actualizar en SQL Server y resetear intentos fallidos
         await pool.request()
             .input('email', sql.VarChar, email)
             .input('pass', sql.VarChar, newHash)
             .query('UPDATE Usuarios SET PasswordHash = @pass, IntentosFallidos = 0 WHERE Email = @email');
 
+        // Registro en Log (opcional)
+        await registrarLog({
+            nivel: 'INFO', servicio: 'AuthService', usuarioId: dbUser.UsuarioID, 
+            accion: 'Reset_Password_Exito', detalles: { motivo: 'Recuperación vía Firebase' }
+        });
+
         res.json({ message: "Contraseña actualizada correctamente" });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Error interno del servidor" });
+        console.error("Error en resetPassword:", error);
+        res.status(500).json({ message: "Error interno al procesar el cambio de clave" });
     }
 };
 

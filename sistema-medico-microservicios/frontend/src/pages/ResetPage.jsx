@@ -1,4 +1,3 @@
-// frontend/src/pages/ResetPage.jsx
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { verifyPasswordResetCode } from "firebase/auth";
@@ -8,63 +7,51 @@ import '../css/styles.css';
 
 function ResetPage() {
     const navigate = useNavigate();
-    const query = new URLSearchParams(useLocation().search);
-    const code = query.get('oobCode');
-
-    // Estados
-    const [showResetModal, setShowResetModal] = useState(false);
+    const location = useLocation();
+    
     const [email, setEmail] = useState("");
+    const [oobCode, setOobCode] = useState("");
     const [loading, setLoading] = useState(true);
+    const [notification, setNotification] = useState({ show: false, title: "", text: "", type: "error", onConfirm: null });
 
-    // --- ESTADOS PARA EL MODAL DE NOTIFICACIÓN ---
-    const [notification, setNotification] = useState({
-        show: false,
-        title: "",
-        text: "",
-        type: "error", // "error" o "success"
-        onConfirm: null
-    });
-
-    // Función auxiliar para mostrar el modal en lugar de alert
     const showAlert = (title, text, type = "error", action = null) => {
-        setNotification({
-            show: true,
-            title,
-            text,
-            type,
-            onConfirm: action
-        });
+        setNotification({ show: true, title, text, type, onConfirm: action });
     };
 
     useEffect(() => {
+        // Extraer parámetros de la URL
+        const query = new URLSearchParams(location.search);
+        const code = query.get('oobCode');
+
         if (code) {
+            setOobCode(code);
+            // Validar el código con Firebase
             verifyPasswordResetCode(auth, code)
                 .then((userEmail) => {
                     setEmail(userEmail);
-                    setLoading(false);
-                    setShowResetModal(true);
+                    setLoading(false); // Deja de cargar y muestra el modal
                 })
-                .catch(() => {
+                .catch((err) => {
+                    console.error("Error de Firebase:", err);
                     setLoading(false);
                     showAlert("Enlace inválido", "El enlace ha expirado o ya fue utilizado.", "error", () => navigate('/'));
                 });
         } else {
-            navigate('/');
+            setLoading(false);
+            navigate('/'); // Si no hay código, regresa al login
         }
-    }, [code, navigate]);
+    }, [location, navigate]);
 
     const handleUpdate = async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target).entries());
 
         if (data.newPassword !== data.confirmPassword) {
-            showAlert("Error de validación", "Las nuevas contraseñas no coinciden.");
-            return;
+            return showAlert("Error", "Las contraseñas no coinciden.");
         }
 
         if (data.newPassword.length < 6) {
-            showAlert("Contraseña débil", "La nueva contraseña debe tener al menos 6 caracteres.");
-            return;
+            return showAlert("Error", "La contraseña debe tener al menos 6 caracteres.");
         }
 
         try {
@@ -72,72 +59,72 @@ function ResetPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email,
-                    currentPassword: data.currentPassword,
+                    email: email,
                     newPassword: data.newPassword
                 })
             });
 
-            const body = await res.json();
             if (res.ok) {
-                showAlert("¡Éxito!", "Tu contraseña ha sido actualizada correctamente. Ya puedes iniciar sesión.", "success", () => navigate('/'));
+                showAlert("¡Éxito!", "Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.", "success", () => navigate('/'));
             } else {
-                showAlert("Error", body.message || "No se pudo actualizar la contraseña.");
+                const body = await res.json();
+                showAlert("Error", body.message || "No se pudo actualizar.");
             }
         } catch (err) {
-            showAlert("Error de red", "No se pudo conectar con el servidor.");
+            showAlert("Error", "No hay conexión con el servidor.");
         }
     };
 
-    const closeNotification = () => {
-        setNotification({ ...notification, show: false });
-        if (notification.onConfirm) notification.onConfirm();
-    };
-
-    if (loading) return <div className="auth-wrapper"><h1>Verificando enlace...</h1></div>;
+    // Esto evita que la pantalla se quede en blanco si hay un error de carga
+    if (loading) {
+        return (
+            <div className="auth-wrapper">
+                <div className="card">
+                    <h2>Verificando enlace...</h2>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="auth-wrapper">
-            {/* FORMULARIO DE RESTABLECIMIENTO */}
-            {showResetModal && (
-                <div className="modal-overlay">
-                    <div className="modal-card">
-                        <h1 style={{ color: '#1877f2', marginBottom: '10px' }}>APOLO</h1>
-                        <h2>Restablecer contraseña</h2>
-                        <p style={{marginBottom: '20px'}}>Cuenta: <b>{email}</b></p>
-                        
-                        <form onSubmit={handleUpdate}>
-                            <div className="form-group">
-                                <input type="password" name="currentPassword" placeholder="Contraseña actual" required />
-                            </div>
-                            <div className="form-group">
-                                <input type="password" name="newPassword" placeholder="Nueva contraseña" required />
-                            </div>
-                            <div className="form-group">
-                                <input type="password" name="confirmPassword" placeholder="Confirmar nueva contraseña" required />
-                            </div>
+            <div className="modal-overlay">
+                <div className="modal-card">
+                    <h1 className="fb-logo" style={{ fontSize: '3rem', marginBottom: '10px' }}>APOLO</h1>
+                    <h2>Nueva contraseña</h2>
+                    <p style={{ marginBottom: '20px' }}>Restableciendo cuenta: <br/> <b>{email}</b></p>
+                    
+                    <form onSubmit={handleUpdate} noValidate>
+                        <div className="form-group">
+                            <label className="field-label">Contraseña nueva</label>
+                            <input type="password" name="newPassword" placeholder="Mínimo 6 caracteres" required autoFocus />
+                        </div>
+                        <div className="form-group">
+                            <label className="field-label">Confirmar contraseña</label>
+                            <input type="password" name="confirmPassword" placeholder="Repite tu contraseña" required />
+                        </div>
 
-                            <div className="modal-actions-inline">
-                                <button className="btn btn-primary" type="submit" style={{flex: 1}}>Actualizar</button>
-                                <button className="btn btn-danger" type="button" onClick={() => navigate('/')} style={{flex: 1, backgroundColor: '#767676'}}>Cancelar</button>
-                            </div>
-                        </form>
-                    </div>
+                        <div className="modal-actions-inline">
+                            <button className="btn btn-primary" type="submit" style={{ flex: 1 }}>Actualizar</button>
+                            <button className="btn btn-danger" type="button" onClick={() => navigate('/')} style={{ flex: 1 }}>Cancelar</button>
+                        </div>
+                    </form>
                 </div>
-            )}
+            </div>
 
-            {/* --- MODAL DE NOTIFICACIÓN (REEMPLAZA AL ALERT) --- */}
+            {/* Modal de Notificación */}
             {notification.show && (
                 <div className="modal-overlay" style={{ zIndex: 1300 }}>
                     <div className="modal-card notification-modal">
                         <div className={notification.type === "success" ? "success-icon" : "error-icon"}>
                             {notification.type === "success" ? "✓" : "✕"}
                         </div>
-                        <h2 style={{ color: notification.type === "success" ? "#42b72a" : "#dc2626" }}>
-                            {notification.title}
-                        </h2>
+                        <h2 style={{ color: notification.type === "success" ? "#42b72a" : "#dc2626" }}>{notification.title}</h2>
                         <p>{notification.text}</p>
-                        <button className="btn btn-primary" onClick={closeNotification}>Aceptar</button>
+                        <button className="btn btn-primary" onClick={() => {
+                            setNotification({ ...notification, show: false });
+                            if (notification.onConfirm) notification.onConfirm();
+                        }}>Aceptar</button>
                     </div>
                 </div>
             )}

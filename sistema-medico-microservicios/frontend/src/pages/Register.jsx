@@ -159,12 +159,12 @@ function Register() {
             <div className="form-row">
               <div className="form-group">
                 <label className="field-label">Nombre</label>
-                <input type="text" name="nombre" placeholder="Ej: Juan" required onChange={handleInputChange} />
+                <input type="text" name="nombre" placeholder="Ej: Juan" required onChange={handleInputChange} maxLength="20"/>
                 {errors.nombre && <span className="error-label">{errors.nombre}</span>}
               </div>
               <div className="form-group">
                 <label className="field-label">Apellido</label>
-                <input type="text" name="apellido" placeholder="Ej: Pérez" required onChange={handleInputChange} />
+                <input type="text" name="apellido" placeholder="Ej: Pérez" required onChange={handleInputChange} maxLength="20"/>
                 {errors.apellido && <span className="error-label">{errors.apellido}</span>}
               </div>
             </div>
@@ -184,12 +184,12 @@ function Register() {
             <div className="form-row">
               <div className="form-group">
                 <label className="field-label">Identificación</label>
-                <input type="text" name="identificacion" placeholder="1234567890" required onChange={handleInputChange} />
+                <input type="text" name="identificacion" placeholder="1234567890" required onChange={handleInputChange} maxLength="10"/>
                 {errors.identificacion && <span className="error-label">{errors.identificacion}</span>}
               </div>
               <div className="form-group">
                 <label className="field-label">Teléfono</label>
-                <input type="tel" name="telefono" placeholder="0999999999" onChange={handleInputChange} />
+                <input type="tel" name="telefono" placeholder="0999999999" onChange={handleInputChange} maxLength="10"/>
                 {errors.telefono && <span className="error-label">{errors.telefono}</span>}
               </div>
             </div>
@@ -213,11 +213,11 @@ function Register() {
               <div className="medico-extra-box" style={{ animation: 'fadeIn 0.3s' }}>
                 <div className="form-group">
                   <label className="field-label">Especialidad</label>
-                  <input type="text" name="especialidad" placeholder="Ej: Cardiología" />
+                  <input type="text" name="especialidad" placeholder="Ej: Cardiología" maxLength="20" />
                 </div>
                 <div className="form-group">
                   <label className="field-label">Número de Licencia</label>
-                  <input type="text" name="numeroLicencia" placeholder="Obligatorio para médicos" />
+                  <input type="text" name="numeroLicencia" placeholder="Obligatorio para médicos" maxLength="10"/>
                 </div>
               </div>
             )}
