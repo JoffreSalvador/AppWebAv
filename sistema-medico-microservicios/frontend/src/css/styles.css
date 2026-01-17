@@ -27,11 +27,7 @@
 
 }
 
-
-
 * { box-sizing: border-box; }
-
-
 
 .auth-wrapper {
   margin: 0;
@@ -44,8 +40,6 @@
   background-color: var(--bg-body); /* Mueve el color de fondo aquí o déjalo en index.css */
 }
 
-
-
 /* Contenedor Principal dividido en dos áreas */
 
 .main-container {
@@ -56,8 +50,6 @@
   align-items: center; /* Centrado verticalmente */
   gap: 40px;
 }
-
-
 
 /* Lado Izquierdo: Branding (APOLO) */
 .brand-section {
@@ -179,15 +171,159 @@ button, .btn {
     gap: 20px;
   }
 
-
   .brand-section {
     padding: 0;
     max-width: 100%;
   }
 
-
-
   .brand-section h1 { font-size: 3rem; }
   .brand-section p { font-size: 1.2rem; }
   .login-section { width: 100%; max-width: 400px; }
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+}
+
+.modal-card {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 450px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.modal-card h2 { margin-bottom: 10px; color: #1c1e21; }
+.modal-card p { color: #606770; font-size: 15px; margin-bottom: 25px; }
+
+/* Contenedor de los 6 cuadros */
+.otp-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 30px;
+}
+
+.otp-input {
+    width: 45px;
+    height: 55px;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+}
+
+.otp-input:focus {
+    border-color: #1877f2;
+    outline: none;
+    box-shadow: 0 0 0 2px #e7f3ff;
+}
+
+.modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: #1877f2;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: hover;
+}
+.modal-content {
+    background: white; padding: 30px; border-radius: 8px;
+    text-align: center; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.otp-container { display: flex; justify-content: space-between; margin: 20px 0; }
+.otp-field {
+    width: 45px; height: 55px; border: 1px solid #ddd; border-radius: 4px;
+    text-align: center; font-size: 24px; font-weight: bold;
+}
+.otp-field:focus { border-color: #1877f2; outline: none; box-shadow: 0 0 5px rgba(24,119,242,0.3); }
+
+/* Icono de error circular */
+.error-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #fce8e8;
+    color: #dc2626;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: bold;
+    margin: 0 auto 15px;
+    border: 2px solid #dc2626;
+}
+
+/* Ajustes específicos para el modal de error */
+.error-modal h2 {
+    color: #dc2626;
+    font-size: 20px;
+    margin-bottom: 10px;
+}
+
+.error-modal p {
+    font-size: 16px;
+    color: #4b4b4b;
+    margin-bottom: 20px;
+}
+
+/* Efecto de entrada suave para los modales */
+.modal-overlay {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-card {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); }
+    to { transform: translateY(0); }
+}
+
+/* Contenedor para botones lado a lado */
+.modal-actions-inline {
+    display: flex;
+    gap: 12px; /* Espacio entre botones */
+    justify-content: center;
+    margin-top: 10px;
+}
+
+/* Botón Rojo (Cancelar) */
+.btn-danger {
+    background-color: #767676 ; /* Rojo */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background-color: #555555; /* Rojo más oscuro al pasar el mouse */
+}
+
+/* Asegurar que el botón azul se vea bien al lado */
+.modal-card .btn-primary {
+    margin-top: 0; /* Quitar margen superior para que alineen perfecto */
 }

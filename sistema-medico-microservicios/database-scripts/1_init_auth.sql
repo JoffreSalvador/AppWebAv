@@ -30,3 +30,7 @@ GO
 -- Agregamos el contador de fallos
 ALTER TABLE Usuarios ADD IntentosFallidos INT DEFAULT 0 NOT NULL;
 GO
+-- Agregamos campos para la autenticación 
+ALTER TABLE Usuarios ADD Codigo2FA NVARCHAR(6) NULL;
+ALTER TABLE Usuarios ADD Expiracion2FA DATETIME NULL;
+GO
