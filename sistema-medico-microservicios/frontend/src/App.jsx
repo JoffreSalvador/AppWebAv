@@ -6,6 +6,7 @@ import Forgot from './pages/Forgot';
 import DashboardMedico from './pages/DashboardMedico';
 import DashboardPaciente from './pages/DashboardPaciente';
 import DashboardAdmin from './pages/DashboardAdmin';
+import ResetPage from './pages/ResetPage'; // Importa la nueva página
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/dashboard-medico" element={<DashboardMedico />} />
         <Route path="/dashboard-paciente" element={<DashboardPaciente />} />
         <Route path="/dashboard-admin" element={<DashboardAdmin />} />
+        <Route path="/reset-password" element={<ResetPage />} />
       </Routes>
     </BrowserRouter>
   )

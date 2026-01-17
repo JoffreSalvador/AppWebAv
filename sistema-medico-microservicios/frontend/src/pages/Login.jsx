@@ -8,30 +8,28 @@ function Login() {
   const navigate = useNavigate();
 
   // Estados generales
-  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
   const [msg, setMsg] = useState('');
   const [msgColor, setMsgColor] = useState('#606770');
   const [loading, setLoading] = useState(false);
 
-  // Estados para 2FA
+  // Estados para 2FA y Modales
   const [showModal, setShowModal] = useState(false);
   const [otp, setOtp] = useState(new Array(6).fill(""));
   const [tempData, setTempData] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(600);
-
-  // --- NUEVOS ESTADOS PARA EL MODAL DE ERROR ---
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutos
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
 
+  // Lógica del cronómetro
   useEffect(() => {
     let timer;
     if (showModal && timeLeft > 0) {
       timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
     } else if (timeLeft === 0 && showModal) {
-      // CUANDO EL TIEMPO LLEGA A CERO:
       clearInterval(timer);
-      setShowModal(false); // Cerramos el de los 6 cuadros
-      setShowTimeoutModal(true); // Abrimos el de "Tiempo Agotado"
+      setShowModal(false);
+      setShowTimeoutModal(true);
     }
     return () => clearInterval(timer);
   }, [showModal, timeLeft]);
@@ -44,7 +42,7 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMsg('Verificando credenciales...');
+    setMsg('Verificando...');
     setLoading(true);
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData.entries());
@@ -83,7 +81,6 @@ function Login() {
   };
 
   const handleVerify2FA = async () => {
-    // Validación de tiempo
     if (timeLeft === 0) {
       setErrorText("El tiempo ha expirado. Por favor, intenta iniciar sesión de nuevo.");
       setShowErrorModal(true);
@@ -114,7 +111,6 @@ function Login() {
         else if (body.user.rol === 3) navigate('/dashboard-admin');
         else navigate('/dashboard-paciente');
       } else {
-        // --- AQUÍ ACTIVAMOS EL MODAL DE ERROR ---
         setErrorText(body.message || "Código incorrecto o expirado.");
         setShowErrorModal(true);
         setOtp(new Array(6).fill(""));
@@ -127,27 +123,44 @@ function Login() {
 
   return (
     <div className="auth-wrapper">
-      {/* Contenido principal (Brand + Login Card) - Igual que antes */}
       <div className="main-container">
+        {/* Lado Izquierdo: Branding */}
         <div className="brand-section">
           <h1>APOLO</h1>
           <p>Gestiona tu historial clínico de forma segura.</p>
         </div>
+
+        {/* Lado Derecho: Login Card */}
         <div className="login-section">
           <div className="card">
             <div className="msg" style={{ color: msgColor }}>{msg}</div>
             <form onSubmit={handleSubmit}>
-              <div className="form-group"><input type="email" name="email" placeholder="Correo electrónico" required /></div>
-              <div className="form-group"><input type="password" name="password" placeholder="Contraseña" required /></div>
-              <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Cargando...' : 'Iniciar sesión'}</button>
+              <div className="form-group">
+                <input type="email" name="email" placeholder="Correo electrónico" required autoFocus />
+              </div>
+              <div className="form-group">
+                <input type="password" name="password" placeholder="Contraseña" required />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'Cargando...' : 'Iniciar sesión'}
+              </button>
             </form>
+
+            <Link to="/forgot" className="forgot-link">¿Olvidaste tu contraseña?</Link>
+            
             <div className="separator"></div>
-            <Link to="/register" className="btn btn-success">Crear cuenta nueva</Link>
+            
+            <div style={{ textAlign: 'center' }}>
+              <Link to="/register" className="btn btn-success">Crear cuenta nueva</Link>
+            </div>
           </div>
+          
+          <p className="fb-footer-text">
+            <strong>KeiMag</strong> para ti y tu empresa
+          </p>
         </div>
       </div>
 
-      {/* --- MODAL DE 2FA --- */}
       {/* --- MODAL DE 2FA --- */}
       {showModal && (
         <div className="modal-overlay">
@@ -155,13 +168,7 @@ function Login() {
             <h2>Verificación de seguridad</h2>
             <p>Introduce el código enviado a <strong>{tempData?.email}</strong></p>
 
-            {/* --- TEMPORIZADOR SIEMPRE EN ROJO --- */}
-            <div style={{
-              color: '#dc2626', // Rojo intenso
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              fontSize: '18px'
-            }}>
+            <div style={{ color: '#dc2626', fontWeight: 'bold', marginBottom: '15px', fontSize: '18px' }}>
               El código expira en: {formatTime(timeLeft)}
             </div>
 
@@ -180,29 +187,19 @@ function Login() {
               ))}
             </div>
 
-            {/* --- BOTONES EN FILA Y CON COLORES --- */}
             <div className="modal-actions-inline">
-              <button
-                className="btn btn-primary"
-                onClick={handleVerify2FA}
-                disabled={timeLeft === 0}
-                style={{ flex: 1 }} // Ocupa la mitad
-              >
+              <button className="btn btn-primary" onClick={handleVerify2FA} disabled={timeLeft === 0} style={{ flex: 1 }}>
                 Continuar
               </button>
-              <button
-                className="btn btn-danger"
-                onClick={() => setShowModal(false)}
-                style={{ flex: 1 }} // Ocupa la otra mitad
-              >
+              <button className="btn btn-danger" onClick={() => setShowModal(false)} style={{ flex: 1 }}>
                 Cancelar
               </button>
             </div>
           </div>
         </div>
       )}
-      
-      {/* --- NUEVO MODAL DE ERROR (REEMPLAZA AL ALERT) --- */}
+
+      {/* --- MODAL DE ERROR --- */}
       {showErrorModal && (
         <div className="modal-overlay" style={{ zIndex: 1100 }}>
           <div className="modal-card error-modal">
@@ -222,17 +219,8 @@ function Login() {
               🕒
             </div>
             <h2 style={{ color: '#ff9800' }}>Tiempo Agotado</h2>
-            <p>El código de seguridad ha expirado por inactividad. Por favor, vuelve a iniciar sesión.</p>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setShowTimeoutModal(false);
-                // Opcional: limpiar mensajes del login
-                setMsg('');
-              }}
-            >
-              Regresar
-            </button>
+            <p>El código de seguridad ha expirado. Por favor, vuelve a iniciar sesión.</p>
+            <button className="btn btn-primary" onClick={() => setShowTimeoutModal(false)}>Regresar</button>
           </div>
         </div>
       )}

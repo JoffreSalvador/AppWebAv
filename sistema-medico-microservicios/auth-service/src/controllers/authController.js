@@ -6,7 +6,47 @@ const userRepo = require('../repositories/userRepository');
 // CORRECCIÓN: Importamos getConnection y sql en una sola línea desde tu config
 const { getConnection, sql } = require('../config/db');
 const { registrarLog } = require('../utils/logger');
+const admin = require('firebase-admin');
+const serviceAccount = require('../config/firebase-admin-key.json');
+
 require('dotenv').config();
+
+const resetPassword = async (req, res) => {
+    const { email, currentPassword, newPassword } = req.body;
+
+    try {
+        const pool = await getConnection();
+
+        // 1. Buscar usuario
+        const result = await pool.request()
+            .input('email', sql.VarChar, email)
+            .query('SELECT * FROM Usuarios WHERE Email = @email');
+
+        const dbUser = result.recordset[0];
+        if (!dbUser) return res.status(404).json({ message: "Usuario no encontrado" });
+
+        // 2. Validar contraseña actual con bcrypt
+        const isMatch = await bcrypt.compare(currentPassword, dbUser.PasswordHash);
+        if (!isMatch) {
+            return res.status(401).json({ message: "La contraseña actual es incorrecta." });
+        }
+
+        // 3. Hashear la nueva y guardar
+        const salt = await bcrypt.genSalt(10);
+        const newHash = await bcrypt.hash(newPassword, salt);
+
+        await pool.request()
+            .input('email', sql.VarChar, email)
+            .input('pass', sql.VarChar, newHash)
+            .query('UPDATE Usuarios SET PasswordHash = @pass, IntentosFallidos = 0 WHERE Email = @email');
+
+        res.json({ message: "Contraseña actualizada correctamente" });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Error interno del servidor" });
+    }
+};
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -16,37 +56,65 @@ const transporter = nodemailer.createTransport({
     }
 });
 
+if (!admin.apps.length) {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+}
 
 // Registro de Usuario
 const register = async (req, res) => {
     try {
         const { email, password, rolId } = req.body;
 
+        // 1. Validar existencia en SQL Server
         const existingUser = await userRepo.findUserByEmail(email);
         if (existingUser) {
-            return res.status(400).json({ message: 'El correo ya está registrado' });
+            return res.status(400).json({ message: 'El correo ya está registrado en el sistema' });
         }
 
+        // 2. CREAR USUARIO EN FIREBASE (Para que funcione Recuperar Contraseña)
+        // Lo hacemos en un try-catch interno para que, si falla Firebase, podamos manejarlo
+        try {
+            await admin.auth().createUser({
+                email: email,
+                password: password, // Sincronizamos la clave
+                emailVerified: true // Marcamos como verificado para evitar problemas
+            });
+            console.log(`Usuario ${email} creado con éxito en Firebase`);
+        } catch (fbError) {
+            // Si el error es que ya existe en Firebase, lo ignoramos y seguimos con SQL
+            if (fbError.code !== 'auth/email-already-exists') {
+                console.error("Error inesperado en Firebase:", fbError);
+                // Si quieres ser estricto, puedes retornar error aquí. 
+                // Por ahora solo logueamos para no detener el registro en SQL.
+            }
+        }
+
+        // 3. Encriptar contraseña para SQL Server
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
+
+        // 4. Guardar en SQL Server
         const newUser = await userRepo.createUser(email, hash, rolId);
 
-        // --- CAMBIO AQUÍ: Generamos un token inmediato solo para el registro ---
+        // 5. Generar token temporal (Permite crear el perfil en core-service sin 2FA)
         const token = jwt.sign(
             { id: newUser.UsuarioID, rol: rolId, email: newUser.Email },
             process.env.JWT_SECRET,
-            { expiresIn: '15m' } // Token corto de 15 minutos
+            { expiresIn: '15m' } 
         );
 
+        // 6. Respuesta final
         res.status(201).json({
-            message: 'Usuario creado exitosamente',
-            token: token, // Enviamos el token al frontend
+            message: 'Usuario creado exitosamente en SQL y Firebase',
+            token: token,
             user: { id: newUser.UsuarioID, email: newUser.Email }
         });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error en el servidor' });
+        console.error("Error crítico en register:", error);
+        res.status(500).json({ message: 'Error interno en el servidor' });
     }
 };
 
@@ -210,20 +278,37 @@ const forgotPassword = async (req, res) => {
 };
 
 const adminUpdateUser = async (req, res) => {
-    const { id } = req.params;
-    const { email, password } = req.body;
+    const { id } = req.params; 
+    const { email } = req.body; // Solo recibimos email
+
     try {
         const pool = await getConnection();
+
+        // Buscamos el email anterior para actualizarlo también en Firebase
+        const userResult = await pool.request()
+            .input('ID', sql.Int, id)
+            .query('SELECT Email FROM Usuarios WHERE UsuarioID = @ID');
+        
+        if (userResult.recordset.length === 0) return res.status(404).json({ message: "Usuario no encontrado" });
+        
+        const oldEmail = userResult.recordset[0].Email;
+
         if (email) {
-            await pool.request().input('ID', sql.Int, id).input('Email', sql.NVarChar, email).query('UPDATE Usuarios SET Email = @Email WHERE UsuarioID = @ID');
+            // A. Actualizar en Firebase
+            const fbUser = await admin.auth().getUserByEmail(oldEmail);
+            await admin.auth().updateUser(fbUser.uid, { email: email });
+
+            // B. Actualizar en SQL Server
+            await pool.request()
+                .input('ID', sql.Int, id)
+                .input('Email', sql.NVarChar, email)
+                .query('UPDATE Usuarios SET Email = @Email WHERE UsuarioID = @ID');
         }
-        if (password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            await pool.request().input('ID', sql.Int, id).input('Pass', sql.NVarChar, hashedPassword).query('UPDATE Usuarios SET PasswordHash = @Pass WHERE UsuarioID = @ID');
-        }
-        res.json({ message: 'Credenciales actualizadas' });
+
+        res.json({ message: 'Correo actualizado en SQL y Firebase' });
     } catch (error) {
-        res.status(500).json({ message: 'Error actualizando' });
+        console.error(error);
+        res.status(500).json({ message: 'Error actualizando cuenta' });
     }
 };
 
@@ -231,10 +316,34 @@ const deleteUserAuth = async (req, res) => {
     const { id } = req.params;
     try {
         const pool = await getConnection();
-        await pool.request().input('ID', sql.Int, id).query('DELETE FROM Usuarios WHERE UsuarioID = @ID');
-        res.json({ message: 'Usuario eliminado' });
+
+        // A. Obtener el email del usuario antes de borrarlo
+        const userResult = await pool.request()
+            .input('ID', sql.Int, id)
+            .query('SELECT Email FROM Usuarios WHERE UsuarioID = @ID');
+
+        if (userResult.recordset.length > 0) {
+            const emailABorrar = userResult.recordset[0].Email;
+
+            // B. Borrar de Firebase
+            try {
+                const fbUser = await admin.auth().getUserByEmail(emailABorrar);
+                await admin.auth().deleteUser(fbUser.uid);
+                console.log(`Usuario ${emailABorrar} eliminado de Firebase`);
+            } catch (fbErr) {
+                console.warn("No se encontró en Firebase o ya estaba borrado.");
+            }
+        }
+
+        // C. Borrar de SQL Server
+        await pool.request()
+            .input('ID', sql.Int, id)
+            .query('DELETE FROM Usuarios WHERE UsuarioID = @ID');
+
+        res.json({ message: 'Usuario eliminado de SQL Server y Firebase' });
     } catch (error) {
-        res.status(500).json({ message: 'Error eliminando' });
+        console.error(error);
+        res.status(500).json({ message: 'Error eliminando usuario' });
     }
 };
 
@@ -245,5 +354,6 @@ module.exports = {
     verify2FA,
     forgotPassword,
     adminUpdateUser,
-    deleteUserAuth
+    deleteUserAuth,
+    resetPassword
 };

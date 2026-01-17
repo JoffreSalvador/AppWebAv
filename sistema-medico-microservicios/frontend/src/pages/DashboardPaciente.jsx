@@ -23,13 +23,33 @@ function DashboardPaciente() {
     useEffect(() => {
         const token = sessionStorage.getItem('token');
         const rol = parseInt(sessionStorage.getItem('rolId'));
-        const nombre = sessionStorage.getItem('email');
-        const id = sessionStorage.getItem('usuarioId');
 
         if (!token || rol !== 2) { navigate('/'); return; }
 
-        setPaciente({ nombre: nombre?.split('@')[0], id });
-        cargarDatos(id, token);
+        // NUEVA LÓGICA: Obtener nombre real
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/core/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setPaciente({
+                        nombre: `${data.Nombre} ${data.Apellido}`,
+                        id: sessionStorage.getItem('usuarioId')
+                    });
+
+                    // Aprovechamos para setear el médico asignado que ya viene en la consulta
+                    setMedicoAsignado({
+                        id: data.MedicoUsuarioID,
+                        nombre: data.NombreMedico || 'Su Médico'
+                    });
+                }
+            } catch (error) { console.error(error); }
+        };
+
+        fetchProfile();
+        // Aquí puedes quitar la llamada a cargarDatos() si ya integraste lo anterior
     }, [navigate]);
 
     const cargarDatos = async (id, token) => {

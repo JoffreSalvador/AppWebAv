@@ -3,15 +3,29 @@ const profileRepo = require('../repositories/profileRepository');
 
 const createMedicoProfile = async (req, res) => {
     try {
-        // req.user viene del middleware (Token decodificado)
         const { id } = req.user; 
-        const { nombre, apellido, identificacion, especialidad, licencia, telefono } = req.body;
+        // CAMBIO AQUÍ: Cambiamos 'licencia' por 'numeroLicencia' para que coincida con el input
+        const { nombre, apellido, identificacion, especialidad, numeroLicencia, telefono } = req.body;
 
-        await profileRepo.createMedico({ usuarioId: id, nombre, apellido, identificacion, especialidad, licencia, telefono });
+        if (!numeroLicencia) {
+            return res.status(400).json({ message: "El número de licencia es obligatorio para médicos." });
+        }
+
+        // Pasamos numeroLicencia al repositorio (asegúrate que el repo use este nombre o cámbialo allí también)
+        await profileRepo.createMedico({ 
+            usuarioId: id, 
+            nombre, 
+            apellido, 
+            identificacion, 
+            especialidad, 
+            licencia: numeroLicencia, 
+            telefono 
+        });
+        
         res.status(201).json({ message: 'Perfil de médico creado' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error al crear perfil' });
+        console.error("Error en createMedicoProfile:", error);
+        res.status(500).json({ message: 'Error al crear perfil de médico' });
     }
 };
 
@@ -48,22 +62,24 @@ const createPacienteProfile = async (req, res) => {
 
 const getMyProfile = async (req, res) => {
     try {
-        // req.user.id es extraído automáticamente del Token por tu authMiddleware
         const usuarioId = req.user.id; 
+        const rolId = req.user.rol; // Extraído del Token
         
-        // LLAMAMOS AL REPOSITORIO (Él se encarga de la base de datos)
-        const perfil = await profileRepo.getPacienteByUsuarioId(usuarioId);
+        let perfil;
+        if (rolId === 1) {
+            perfil = await profileRepo.getMedicoByUsuarioId(usuarioId);
+        } else {
+            perfil = await profileRepo.getPacienteByUsuarioId(usuarioId);
+        }
         
         if (perfil) {
-            // Si existe el perfil, devolvemos el JSON al frontend
             res.json(perfil);
         } else {
-            // Si el ID del token no existe en la tabla Pacientes
-            res.status(404).json({ message: "Perfil de paciente no encontrado" });
+            res.status(404).json({ message: "Perfil no encontrado" });
         }
     } catch (error) {
-        console.error("Error en getMyProfile:", error);
-        res.status(500).json({ message: "Error interno del servidor al obtener el perfil" });
+        console.error(error);
+        res.status(500).json({ message: "Error al obtener el perfil" });
     }
 };
 
@@ -90,20 +106,25 @@ const updatePacienteProfile = async (req, res) => {
 
 const validateRegistryData = async (req, res) => {
     try {
-        // Ahora recibimos excludeUserId (opcional)
         const { identificacion, licencia, excludeUserId } = req.body;
         
-        // Pasamos el ID (si no viene, enviamos 0 para que no excluya a nadie, caso registro nuevo)
+        if (!identificacion) {
+            return res.status(400).json({ message: "La identificación es obligatoria." });
+        }
+
         const result = await profileRepo.checkUniqueData(identificacion, licencia, excludeUserId || 0);
         
         if (result.exists) {
-            return res.status(409).json({ message: `El valor de ${result.field} ya está registrado en el sistema.` });
+            // Devolvemos 409 Conflict para que el frontend detecte el error
+            return res.status(409).json({ 
+                message: `El ${result.field} ya se encuentra registrado en nuestro sistema.` 
+            });
         }
 
-        res.status(200).json({ message: 'Datos válidos' });
+        res.status(200).json({ message: 'Datos disponibles' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error validando datos' });
+        console.error("Error en validateRegistryData:", error);
+        res.status(500).json({ message: 'Error interno al validar los datos.' });
     }
 };
 

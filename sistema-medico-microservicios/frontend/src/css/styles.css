@@ -327,3 +327,192 @@ button, .btn {
 .modal-card .btn-primary {
     margin-top: 0; /* Quitar margen superior para que alineen perfecto */
 }
+
+.fb-footer-text {
+    margin-top: 28px;
+    font-size: 14px;
+    color: var(--text-main);
+    text-align: center;
+}
+
+/* Icono de éxito circular */
+.success-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #e7f3ff;
+    color: #42b72a;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: bold;
+    margin: 0 auto 15px;
+    border: 2px solid #42b72a;
+}
+
+/* Estilo para el modal de notificación */
+.notification-modal h2 {
+    margin-bottom: 10px;
+    font-size: 22px;
+}
+
+.notification-modal p {
+    color: #606770;
+    margin-bottom: 25px;
+    font-size: 16px;
+}
+
+/* Colores de texto dinámicos */
+.text-danger { color: #dc2626 !important; }
+.text-success { color: #42b72a !important; }
+.text-warning { color: #f59e0b !important; }
+
+/* Icono de Peligro (Rojo) */
+.danger-icon {
+    width: 60px; height: 60px;
+    background-color: #fce8e8; color: #dc2626;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: bold; margin: 0 auto 15px; border: 2px solid #dc2626;
+}
+
+/* Icono de Advertencia (Amarillo/Naranja) */
+.warning-icon {
+    width: 60px; height: 60px;
+    background-color: #fffbeb; color: #f59e0b;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: bold; margin: 0 auto 15px; border: 2px solid #f59e0b;
+}
+
+/* Botón Gris (como el de cancelar del código) */
+.btn-secondary {
+    background-color: #e4e6eb; /* Gris claro estilo Facebook */
+    color: #4b4f56;           /* Texto gris oscuro */
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+    line-height: 1.2;
+    display: inline-block;
+}
+
+.btn-secondary:hover {
+    background-color: #d8dadf; /* Un poco más oscuro al pasar el mouse */
+}
+
+/* Animación opcional para que el texto aparezca suavemente */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Contenedor de etiqueta + input */
+.field-container {
+    margin-bottom: 15px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Etiquetas consistentes */
+.field-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #4b4f56;
+    margin-bottom: 6px;
+}
+
+/* Estilo para los placeholders (ejemplos) */
+input::placeholder {
+    color: #bec3c9;
+    font-style: italic;
+}
+
+/* Responsividad para móviles */
+@media (max-width: 600px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+}
+
+/* Entradas más compactas */
+.small-input {
+    padding: 10px 12px !important;
+    font-size: 14px !important;
+    height: 40px;
+}
+
+/* Botón que ocupa todo el ancho */
+.btn-full {
+    width: 100% !important;
+    display: block !important;
+    margin: 10px auto 0 !important;
+    padding: 12px !important;
+    font-size: 18px !important;
+}
+
+/* Diseño para el desplegable (Select) */
+.fb-select {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+    background-color: white;
+    color: #1c1e21;
+    outline: none;
+    cursor: pointer;
+    appearance: none; /* Quitar flecha nativa si se desea */
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23606770%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px;
+}
+
+/* Botón estilizado delgado */
+.btn-thin {
+    padding: 8px 16px !important; /* Altura reducida */
+    font-size: 18px !important;    /* Letra legible pero elegante */
+    margin-top: 15px !important;
+}
+
+/* Select estilo Facebook */
+.fb-select {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 17px;
+    border: 1px solid #dddfe2;
+    border-radius: 6px;
+    background-color: white;
+    cursor: pointer;
+    outline: none;
+    color: #1c1e21;
+}
+
+.fb-select:focus {
+    border-color: #1877f2;
+    box-shadow: 0 0 0 2px #e7f3ff;
+}
+
+/* Etiquetas de error debajo de los campos */
+.error-label {
+    color: #dc2626;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 3px;
+    display: block;
+    margin-left: 5px;
+}
+
+/* Caja de datos extra para especialistas */
+.medico-extra-box {
+    background-color: #f0f2f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px dashed #ced0d4;
+}

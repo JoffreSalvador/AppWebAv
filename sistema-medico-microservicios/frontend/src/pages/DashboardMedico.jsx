@@ -13,7 +13,7 @@ function DashboardMedico() {
     const [historia, setHistoria] = useState({ consultas: [], examenes: [] });
     // Modificado: Agregamos internalId para la validación de transferencia
     const [medico, setMedico] = useState({ nombre: '', id: null, internalId: null });
-    
+
     // Nuevo Estado para lista de médicos (para reasignar)
     const [medicosList, setMedicosList] = useState([]);
 
@@ -45,7 +45,7 @@ function DashboardMedico() {
 
     // Nuevo Helper para Alergias
     const renderAlergias = (alergiasString) => {
-        if (!alergiasString) return <span style={{color: '#ccc', fontSize: '12px'}}>Ninguna</span>;
+        if (!alergiasString) return <span style={{ color: '#ccc', fontSize: '12px' }}>Ninguna</span>;
         return alergiasString.split(',').map((alergia, index) => (
             <div key={index} style={{ whiteSpace: 'nowrap' }}>• {alergia.trim()}</div>
         ));
@@ -55,15 +55,30 @@ function DashboardMedico() {
     useEffect(() => {
         const token = sessionStorage.getItem('token');
         const rol = parseInt(sessionStorage.getItem('rolId'));
-        const nombre = sessionStorage.getItem('email');
-        const id = sessionStorage.getItem('usuarioId');
 
         if (!token || rol !== 1) { navigate('/'); return; }
 
-        setMedico({ nombre: nombre?.split('@')[0], id });
-        
+        // NUEVA LÓGICA: Obtener nombre real
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/core/me`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Seteamos nombre, apellido y especialidad reales
+                    setMedico({
+                        nombre: `${data.Nombre} ${data.Apellido}`,
+                        id: sessionStorage.getItem('usuarioId'),
+                        especialidad: data.Especialidad
+                    });
+                }
+            } catch (error) { console.error(error); }
+        };
+
+        fetchProfile();
         cargarPacientes();
-        cargarListaMedicos(); // Cargamos lista para el select de edición
+        cargarListaMedicos();
     }, [navigate]);
 
     const cargarPacientes = async () => {
@@ -76,8 +91,8 @@ function DashboardMedico() {
                 const data = await res.json();
                 setPacientes(data);
                 // Guardamos el ID interno del médico si hay pacientes para comparar luego
-                if(data.length > 0) {
-                    setMedico(prev => ({...prev, internalId: data[0].MedicoID}));
+                if (data.length > 0) {
+                    setMedico(prev => ({ ...prev, internalId: data[0].MedicoID }));
                 }
             }
         } catch (error) { console.error(error); }
@@ -116,7 +131,7 @@ function DashboardMedico() {
         e.preventDefault();
         const form = e.target;
         const nuevoMedicoId = parseInt(form.medicoId.value);
-        
+
         // Advertencia de transferencia
         if (medico.internalId && nuevoMedicoId !== medico.internalId) {
             const confirmTransfer = confirm("⚠️ ADVERTENCIA: Estás a punto de asignar este paciente a otro médico.\n\nSi continúas, dejarás de tener acceso a este paciente y desaparecerá de tu lista.\n\n¿Estás seguro?");
@@ -229,7 +244,7 @@ function DashboardMedico() {
     };
 
     // --- CHAT (Lógica original intacta) ---
-    const [activeChat, setActiveChat] = useState(null); 
+    const [activeChat, setActiveChat] = useState(null);
 
     useEffect(() => {
         if (activeChat && view === 'chat') {
@@ -271,8 +286,8 @@ function DashboardMedico() {
             <aside className="sidebar">
                 <div className="profile-section">
                     <div className="avatar"><i className="fas fa-user-md"></i></div>
-                    <h3>Dr. {medico.nombre}</h3>
-                    <p>Médico General</p>
+                    <h3>{medico.nombre}</h3>
+                    <p>{medico.especialidad || 'Médico General'}</p>
                 </div>
                 <nav>
                     <button className={`nav-btn ${view !== 'chat' ? 'active' : ''}`} onClick={() => setView('pacientes')}>
@@ -324,24 +339,24 @@ function DashboardMedico() {
                                 <tbody>
                                     {pacientes.map(p => (
                                         <tr key={p.UsuarioID}>
-                                            <td style={{fontWeight:'bold', color: '#666'}}>{p.Identificacion || '--'}</td>
-                                            <td style={{fontWeight:'bold'}}>{p.Nombre} {p.Apellido}</td>
+                                            <td style={{ fontWeight: 'bold', color: '#666' }}>{p.Identificacion || '--'}</td>
+                                            <td style={{ fontWeight: 'bold' }}>{p.Nombre} {p.Apellido}</td>
                                             <td>{calcularEdad(p.FechaNacimiento)} años</td>
-                                            
+
                                             {/* Columnas Nuevas */}
                                             <td>{p.TipoSangre || '--'}</td>
-                                            <td style={{maxWidth:'150px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}} title={p.Direccion}>{p.Direccion || '--'}</td>
+                                            <td style={{ maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.Direccion}>{p.Direccion || '--'}</td>
                                             <td>{p.TelefonoContacto || '--'}</td>
                                             {/* Alergias Verticales */}
-                                            <td style={{fontSize:'12px', lineHeight:'1.4'}}>{renderAlergias(p.Alergias)}</td>
-                                            
+                                            <td style={{ fontSize: '12px', lineHeight: '1.4' }}>{renderAlergias(p.Alergias)}</td>
+
                                             <td style={{ textAlign: 'right' }}>
-                                                <div style={{display:'flex', gap:'5px', justifyContent:'flex-end'}}>
+                                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
                                                     {/* Botón Editar (Nuevo) */}
-                                                    <button className="btn-secondary btn-sm" title="Editar Datos" onClick={() => setModalPaciente({isOpen: true, data: p})}>
+                                                    <button className="btn-secondary btn-sm" title="Editar Datos" onClick={() => setModalPaciente({ isOpen: true, data: p })}>
                                                         <i className="fas fa-user-edit"></i>
                                                     </button>
-                                                    
+
                                                     {/* Botón Historia */}
                                                     <button className="btn-primary btn-sm" onClick={() => verHistoria(p)}>
                                                         <i className="fas fa-eye"></i> Historia
@@ -470,11 +485,11 @@ function DashboardMedico() {
             {/* MODAL EDICIÓN PACIENTE */}
             {modalPaciente.isOpen && (
                 <div className="modal">
-                    <div className="modal-content" style={{maxWidth:'600px'}}>
-                        <span className="close-modal" onClick={() => setModalPaciente({isOpen: false, data: null})}>&times;</span>
+                    <div className="modal-content" style={{ maxWidth: '600px' }}>
+                        <span className="close-modal" onClick={() => setModalPaciente({ isOpen: false, data: null })}>&times;</span>
                         <h2>Editar Datos del Paciente</h2>
                         <form onSubmit={handleUpdatePaciente}>
-                            <div style={{background:'#fff3cd', padding:'10px', borderRadius:'5px', marginBottom:'15px', fontSize:'13px', color:'#856404', border:'1px solid #ffeeba'}}>
+                            <div style={{ background: '#fff3cd', padding: '10px', borderRadius: '5px', marginBottom: '15px', fontSize: '13px', color: '#856404', border: '1px solid #ffeeba' }}>
                                 <i className="fas fa-exclamation-triangle"></i> Si cambias el <strong>Médico Asignado</strong>, el paciente desaparecerá de tu lista.
                             </div>
 
@@ -499,19 +514,19 @@ function DashboardMedico() {
                             </div>
                             <div className="form-row">
                                 <div className="form-group"><label>Celular</label><input name="telefono" defaultValue={modalPaciente.data?.TelefonoContacto} /></div>
-                                <div className="form-group"><label>Tipo Sangre</label><input name="tipoSangre" style={{width:'80px'}} defaultValue={modalPaciente.data?.TipoSangre} /></div>
+                                <div className="form-group"><label>Tipo Sangre</label><input name="tipoSangre" style={{ width: '80px' }} defaultValue={modalPaciente.data?.TipoSangre} /></div>
                             </div>
                             <div className="form-group"><label>Dirección</label><input name="direccion" defaultValue={modalPaciente.data?.Direccion} /></div>
-                            
+
                             <div className="form-group">
                                 <label>Alergias</label>
                                 <textarea name="alergias" rows="3" defaultValue={modalPaciente.data?.Alergias}></textarea>
-                                <small style={{color: '#606770', fontSize: '12px', marginTop: '4px', display:'block'}}>
+                                <small style={{ color: '#606770', fontSize: '12px', marginTop: '4px', display: 'block' }}>
                                     <i className="fas fa-info-circle"></i> Separa las alergias con <strong>comas (,)</strong> para visualizarlas correctamente.
                                 </small>
                             </div>
-                            
-                            <button type="submit" className="btn-primary btn-full" style={{marginTop:'10px'}}>Guardar Cambios</button>
+
+                            <button type="submit" className="btn-primary btn-full" style={{ marginTop: '10px' }}>Guardar Cambios</button>
                         </form>
                     </div>
                 </div>

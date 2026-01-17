@@ -1,114 +1,106 @@
 // frontend/src/pages/Forgot.jsx
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // Para navegar sin recargar
-import { API_URL } from '../config';
+import { Link } from 'react-router-dom';
 import '../css/styles.css';
+import { auth } from "../firebaseConfig";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 function Forgot() {
-  const [msg, setMsg] = useState('');
-  const [msgColor, setMsgColor] = useState('#606770');
-  const [isDisabled, setIsDisabled] = useState(false);
-  const navigate = useNavigate();
+    const [msg, setMsg] = useState('');
+    const [msgColor, setMsgColor] = useState('#606770');
+    const [loading, setLoading] = useState(false);
+    const [sent, setSent] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMsg('Procesando...');
-    setMsgColor('#606770');
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setMsg('Buscando cuenta...');
+        setMsgColor('#606770');
+        setLoading(true);
 
-    const formData = new FormData(e.target);
-    const email = formData.get('email');
-    const password = formData.get('password');
-    const confirm = formData.get('confirm');
+        const formData = new FormData(e.target);
+        const email = formData.get('email');
 
-    // 1. Validaciones Frontend
-    if (password !== confirm) {
-        setMsg('Las contraseñas no coinciden.');
-        setMsgColor('#dc2626');
-        return;
-    }
+        const actionCodeSettings = {
+            // Esta URL es a donde irá el usuario al hacer clic en el correo
+            url: 'http://localhost:5173/reset-password',
+            handleCodeInApp: true,
+        };
 
-    if (password.length < 6) {
-        setMsg('La contraseña debe tener al menos 6 caracteres.');
-        setMsgColor('#dc2626');
-        return;
-    }
-
-    try {
-        // Llamada al Auth Service a través del Gateway
-        const res = await fetch(`${API_URL}/api/auth/forgot`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-
-        const body = await res.json();
-
-        if (res.ok) {
-            setMsg(body.message || 'Contraseña cambiada con éxito.');
-            setMsgColor('#42b72a'); // Verde éxito
-            setIsDisabled(true); // Deshabilitar formulario
-
-            // Redirigir al Login después de 2 segundos
-            setTimeout(() => {
-                navigate('/');
-            }, 2000);
-        } else {
-            setMsg(body.message || 'Error al cambiar la contraseña.');
-            setMsgColor('#dc2626');
-        }
-
-    } catch (err) {
-        console.error(err);
-        setMsg('Error de conexión con el servidor.');
-        setMsgColor('#dc2626');
-    }
-  };
-
-  return (
-    <div className="auth-wrapper">
-        <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}>
+        try {
+            // Enviamos el correo a través de Firebase
+            await sendPasswordResetEmail(auth, email, actionCodeSettings);
             
-            <h1 style={{ textAlign: 'center', color: 'var(--primary)', marginBottom: '20px' }}>APOLO</h1>
+            setMsg('¡Enlace enviado! Revisa tu bandeja de entrada para continuar.');
+            setMsgColor('#42b72a'); // Verde éxito
+            setSent(true); // Ocultar el botón para evitar reenvíos
+        } catch (error) {
+            console.error("Error Firebase:", error.code);
+            if (error.code === 'auth/user-not-found') {
+                setMsg('No encontramos ninguna cuenta con ese correo.');
+            } else {
+                setMsg('Hubo un error al enviar el correo. Inténtalo más tarde.');
+            }
+            setMsgColor('#dc2626');
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            <div className="card">
-                <h2 style={{ marginTop: 0, fontSize: '24px' }}>Restablecer contraseña</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.4 }}>
-                    Ingresa tu correo electrónico asociado y define tu nueva contraseña para recuperar el acceso.
-                </p>
+    return (
+        <div className="auth-wrapper">
+            <div style={{ width: '100%', maxWidth: '500px', margin: '0 auto' }}>
 
-                <div className="msg" style={{ color: msgColor, fontWeight: 'bold' }}>{msg}</div>
+                <h1 style={{ textAlign: 'center', color: 'var(--primary)', marginBottom: '20px', letterSpacing: '-2px' }}>APOLO</h1>
 
-                <form onSubmit={handleSubmit}>
-                    <fieldset disabled={isDisabled} style={{ border: 'none', padding: 0, margin: 0 }}>
-                        <div className="form-group">
-                            <input type="email" name="email" required placeholder="Correo electrónico" />
+                <div className="card">
+                    <h2 style={{ marginTop: 0, fontSize: '20px', textAlign: 'left' }}>Encuentra tu cuenta</h2>
+                    <div className="separator" style={{ margin: '10px 0 20px 0' }}></div>
+                    
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.4, textAlign: 'left', fontSize: '17px' }}>
+                        Introduce tu correo electrónico para buscar tu cuenta y enviarte un enlace de recuperación.
+                    </p>
+
+                    {msg && <div className="msg" style={{ color: msgColor, fontWeight: 'bold', marginBottom: '15px' }}>{msg}</div>}
+
+                    {!sent && (
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <input 
+                                    type="email" 
+                                    name="email" 
+                                    required 
+                                    placeholder="Correo electrónico" 
+                                    autoFocus
+                                    style={{ padding: '14px' }}
+                                />
+                            </div>
+
+                            <div className="modal-actions-inline" style={{ marginTop: '20px', borderTop: '1px solid #dddfe2', paddingTop: '20px' }}>
+                                <Link to="/" className="btn-danger" style={{ flex: 1, textDecoration: 'none', textAlign: 'center', backgroundColor: '#e4e6eb', color: '#4b4f56' }}>
+                                    Cancelar
+                                </Link>
+                                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
+                                    {loading ? 'Buscando...' : 'Continuar'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    {sent && (
+                        <div style={{ marginTop: '20px', borderTop: '1px solid #dddfe2', paddingTop: '20px' }}>
+                            <Link to="/" className="btn btn-primary">
+                                Regresar al inicio
+                            </Link>
                         </div>
-
-                        <div className="form-group">
-                            <input type="password" name="password" required placeholder="Nueva contraseña" />
-                        </div>
-
-                        <div className="form-group">
-                            <input type="password" name="confirm" required placeholder="Confirmar nueva contraseña" />
-                        </div>
-
-                        <div className="form-group" style={{ marginTop: '20px' }}>
-                            <button type="submit" className="btn btn-primary">Cambiar contraseña</button>
-                        </div>
-                    </fieldset>
-                </form>
-
-                <div className="separator"></div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center' }}>
-                    <Link to="/" style={{ textDecoration: 'none', color: 'var(--text-main)', padding: '8px 16px', background: '#e4e6eb', borderRadius: '6px', fontWeight: 600, fontSize: '15px' }}>
-                        Cancelar
-                    </Link>
+                    )}
                 </div>
+                
+                <p style={{ marginTop: '20px', fontSize: '13px', color: '#666', textAlign: 'center' }}>
+                    <strong>KeiMag</strong> para ti y tu empresa
+                </p>
             </div>
         </div>
-    </div>
-  );
+    );
 }
 
 export default Forgot;

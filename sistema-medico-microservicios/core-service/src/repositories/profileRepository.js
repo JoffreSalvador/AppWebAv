@@ -110,28 +110,28 @@ const updatePaciente = async (id, data) => {
 
 const checkUniqueData = async (identificacion, licencia, excludeUserId = 0) => {
     const pool = await getConnection();
-    
-    // 1. Verificar Identificación (Excluyendo al usuario actual si se envía su ID)
+
+    // 1. Verificar Identificación en Médicos Y Pacientes simultáneamente
     const idCheck = await pool.request()
         .input('Identificacion', sql.NVarChar, identificacion)
-        .input('ExcludeID', sql.Int, excludeUserId) // ID del usuario a ignorar (el que se edita)
+        .input('ExcludeID', sql.Int, excludeUserId)
         .query(`
-            SELECT 1 FROM Medicos WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
-            UNION
-            SELECT 1 FROM Pacientes WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
+            SELECT 'Cédula' as Campo FROM Medicos WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
+            UNION ALL
+            SELECT 'Cédula' as Campo FROM Pacientes WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
         `);
 
     if (idCheck.recordset.length > 0) {
-        return { exists: true, field: 'Identificación' };
+        return { exists: true, field: 'Identificación (Cédula)' };
     }
 
-    // 2. Verificar Licencia (Solo si se envió una)
-    if (licencia) {
+    // 2. Verificar Licencia (Solo si se envió una y no es null/vacío)
+    if (licencia && licencia.trim() !== "") {
         const licCheck = await pool.request()
             .input('Licencia', sql.NVarChar, licencia)
             .input('ExcludeID', sql.Int, excludeUserId)
-            .query(`SELECT 1 FROM Medicos WHERE NumeroLicencia = @Licencia AND UsuarioID != @ExcludeID`);
-        
+            .query(`SELECT 'Licencia' as Campo FROM Medicos WHERE NumeroLicencia = @Licencia AND UsuarioID != @ExcludeID`);
+
         if (licCheck.recordset.length > 0) {
             return { exists: true, field: 'Número de Licencia' };
         }
@@ -140,4 +140,21 @@ const checkUniqueData = async (identificacion, licencia, excludeUserId = 0) => {
     return { exists: false };
 };
 
-module.exports = { createMedico, getPacientesByMedico, createPaciente, getPacienteByUsuarioId, getAllMedicos, updatePaciente, checkUniqueData };
+const getMedicoByUsuarioId = async (usuarioId) => {
+    const pool = await getConnection();
+    const result = await pool.request()
+        .input('UsuarioID', sql.Int, usuarioId)
+        .query('SELECT * FROM Medicos WHERE UsuarioID = @UsuarioID');
+    return result.recordset[0];
+};
+
+module.exports = { 
+    createMedico, 
+    getPacientesByMedico, 
+    createPaciente, 
+    getPacienteByUsuarioId, 
+    getAllMedicos, 
+    updatePaciente, 
+    checkUniqueData, 
+    getMedicoByUsuarioId 
+};

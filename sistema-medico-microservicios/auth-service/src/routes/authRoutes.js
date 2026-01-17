@@ -9,5 +9,6 @@ router.post('/verify-2fa', authController.verify2FA);
 router.post('/forgot', authController.forgotPassword);
 router.put('/users/:id', authController.adminUpdateUser);
 router.delete('/users/:id', authController.deleteUserAuth);
+router.post('/reset-password', authController.resetPassword);
 
 module.exports = router;
