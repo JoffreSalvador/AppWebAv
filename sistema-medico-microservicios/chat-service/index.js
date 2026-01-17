@@ -16,7 +16,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 
-app.get('/api/chat/historial/:u1/:u2', async (req, res) => {
+app.get('/historial/:u1/:u2', async (req, res) => {
     try {
         const { u1, u2 } = req.params;
         console.log(`Petición de historial recibida: ${u1} y ${u2}`);

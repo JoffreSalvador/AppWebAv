@@ -235,7 +235,7 @@ function DashboardMedico() {
         if (activeChat && view === 'chat') {
             const myId = sessionStorage.getItem('usuarioId');
             // 1. Cargar mensajes viejos
-            fetch(`http://localhost:3004/api/chat/historial/${myId}/${activeChat.UsuarioID}`)
+            fetch(`${API_URL}/api/chat/historial/${myId}/${activeChat.UsuarioID}`)
                 .then(res => res.json())
                 .then(data => setChatMessages(data));
 

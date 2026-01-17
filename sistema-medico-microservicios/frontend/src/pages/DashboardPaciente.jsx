@@ -63,7 +63,7 @@ function DashboardPaciente() {
             const myId = sessionStorage.getItem('usuarioId');
 
             // 1. Cargar historial del chat-service (puerto 3004)
-            fetch(`http://localhost:3004/api/chat/historial/${myId}/${medicoAsignado.id}`)
+            fetch(`${API_URL}/api/chat/historial/${myId}/${medicoAsignado.id}`)
                 .then(res => res.json())
                 .then(data => setChatMessages(data));
 
