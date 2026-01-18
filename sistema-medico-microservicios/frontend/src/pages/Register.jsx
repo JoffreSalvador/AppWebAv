@@ -80,9 +80,9 @@ function Register() {
     }
 
     try {
-      setMsg('Verificando disponibilidad de documentos...');
+      setMsg('Verificando disponibilidad...');
 
-      // --- PASO 0: VALIDACIÓN DE DUPLICADOS EN CORE ---
+      // --- PASO 0: VALIDACIÓN ---
       const resVal = await fetch(`${API_URL}/api/core/validate-registry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,15 +92,13 @@ function Register() {
         })
       });
 
-      const bodyVal = await resVal.json();
-
       if (!resVal.ok) {
-        // SI ENTRA AQUÍ, NO SE REGISTRA NADA EN AUTH.
+        const bodyVal = await resVal.json();
         return showAlert("Documento Duplicado", bodyVal.message);
       }
 
-      // --- PASO 1: REGISTRAR EN AUTH (Solo si el paso 0 fue exitoso) ---
-      setMsg('Registrando cuenta de acceso...');
+      // --- PASO 1: REGISTRAR EN AUTH ---
+      setMsg('Registrando cuenta...');
       const resAuth = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,32 +106,51 @@ function Register() {
       });
 
       const bodyAuth = await resAuth.json();
-      if (!resAuth.ok) return showAlert("Error de Cuenta", bodyAuth.message || "El correo ya existe.");
+      if (!resAuth.ok) return showAlert("Error de Cuenta", bodyAuth.message);
 
       // --- PASO 2: CREAR PERFIL EN CORE ---
-      setMsg('Configurando perfil médico/paciente...');
+      setMsg('Configurando perfil...');
       let profileUrl = rolId === 1 ? `${API_URL}/api/core/medicos` : `${API_URL}/api/core/pacientes`;
+
+      const profilePayload = isMedico ? {
+        usuarioId: bodyAuth.user.id,
+        nombre: data.nombre,
+        apellido: data.apellido,
+        identificacion: data.identificacion,
+        especialidad: data.especialidad || "General",
+        numeroLicencia: data.numeroLicencia,
+        telefono: data.telefono
+      } : {
+        usuarioId: bodyAuth.user.id,
+        nombre: data.nombre,
+        apellido: data.apellido,
+        identificacion: data.identificacion,
+        fechaNacimiento: data.fechaNacimiento,
+        telefono: data.telefono
+        // YA NO ENVIAMOS medicoId: 1 desde aquí
+      };
 
       const resProfile = await fetch(profileUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${bodyAuth.token}`
+          'Authorization': `Bearer ${bodyAuth.token}` // Token temporal del registro
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(profilePayload)
       });
 
       if (resProfile.ok) {
-        showAlert("¡Éxito!", "Cuenta y perfil creados correctamente.", "success", () => navigate('/'));
+        showAlert("¡Éxito!", "Cuenta creada. Ahora puedes iniciar sesión.", "success", () => navigate('/'));
       } else {
-        // Si llegara a fallar aquí (muy raro), al menos ya sabemos que el Paso 0 falló por algo más
-        await fetch(`${API_URL}/api/auth/users/${creadoUsuarioId}`, {
+        // Si falla el perfil, borramos el usuario creado en Auth
+        await fetch(`${API_URL}/api/auth/users/${bodyAuth.user.id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${bodyAuth.token}` }
         });
-        const errorMsg = await resProfile.text();
-        console.error("Error en Perfil:", errorMsg);
-        throw new Error("No se pudo completar la configuración del perfil.");
+
+        const errorText = await resProfile.text();
+        console.error("Error del servidor Core:", errorText);
+        throw new Error("Error al crear el perfil en la base de datos.");
       }
     } catch (err) {
       showAlert("Error Crítico", err.message);

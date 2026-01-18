@@ -10,7 +10,7 @@ const createMedico = async (data) => {
         .input('Identificacion', sql.NVarChar, data.identificacion)
         .input('Especialidad', sql.NVarChar, data.especialidad)
         .input('NumeroLicencia', sql.NVarChar, data.licencia)
-        .input('Telefono', sql.NVarChar, data.telefono)
+        .input('TelefonoContacto', sql.NVarChar, data.telefonoContacto)
         .query(`
             INSERT INTO Medicos (UsuarioID, Nombre, Apellido, Identificacion, Especialidad, NumeroLicencia, Telefono)
             VALUES (@UsuarioID, @Nombre, @Apellido, @Identificacion, @Especialidad, @NumeroLicencia, @Telefono)
@@ -39,19 +39,35 @@ const getPacientesByMedico = async (medicoUsuarioId) => {
 
 const createPaciente = async (data) => {
     const pool = await getConnection();
-    const result = await pool.request()
+    await pool.request()
         .input('UsuarioID', sql.Int, data.usuarioId)
-        .input('MedicoID', sql.Int, 1) // OJO: Por defecto asignamos al Médico ID 1 (Juan Perez) temporalmente
+        .input('MedicoID', sql.Int, data.medicoId) 
         .input('Nombre', sql.NVarChar, data.nombre)
         .input('Apellido', sql.NVarChar, data.apellido)
         .input('FechaNacimiento', sql.Date, data.fechaNacimiento)
         .input('Identificacion', sql.NVarChar, data.identificacion)
-        .input('TelefonoContacto', sql.NVarChar, data.telefono)
+        .input('TelefonoContacto', sql.NVarChar, data.telefono) // Aquí mapeamos data.telefono a la columna SQL
         .query(`
             INSERT INTO Pacientes (UsuarioID, MedicoID, Nombre, Apellido, FechaNacimiento, Identificacion, TelefonoContacto)
             VALUES (@UsuarioID, @MedicoID, @Nombre, @Apellido, @FechaNacimiento, @Identificacion, @TelefonoContacto)
         `);
-    return result;
+};
+
+// Busca un médico por especialidad o simplemente el primero que encuentre
+const getAvailableMedico = async (especialidad = 'Medicina General') => {
+    const pool = await getConnection();
+    
+    // Intentamos buscar uno de Medicina General
+    let result = await pool.request()
+        .input('Esp', sql.NVarChar, especialidad)
+        .query('SELECT TOP 1 MedicoID FROM Medicos WHERE Especialidad = @Esp');
+
+    // Si no hay de Medicina General, traemos cualquier médico disponible
+    if (result.recordset.length === 0) {
+        result = await pool.request().query('SELECT TOP 1 MedicoID FROM Medicos');
+    }
+
+    return result.recordset.length > 0 ? result.recordset[0].MedicoID : null;
 };
 
 const getPacienteByUsuarioId = async (usuarioId) => {
@@ -148,13 +164,14 @@ const getMedicoByUsuarioId = async (usuarioId) => {
     return result.recordset[0];
 };
 
-module.exports = { 
-    createMedico, 
-    getPacientesByMedico, 
-    createPaciente, 
-    getPacienteByUsuarioId, 
-    getAllMedicos, 
-    updatePaciente, 
-    checkUniqueData, 
-    getMedicoByUsuarioId 
+module.exports = {
+    createMedico,
+    getPacientesByMedico,
+    createPaciente,
+    getPacienteByUsuarioId,
+    getAllMedicos,
+    updatePaciente,
+    checkUniqueData,
+    getMedicoByUsuarioId,
+    getAvailableMedico 
 };

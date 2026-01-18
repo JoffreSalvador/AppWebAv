@@ -6,26 +6,35 @@ import '../css/dashboard.css';
 function DashboardMedico() {
     const navigate = useNavigate();
 
-    // ESTADOS
-    const [view, setView] = useState('pacientes');
+    // --- ESTADOS DE VISTA Y DATOS ---
+    const [view, setView] = useState('pacientes'); // 'pacientes' | 'detalle' | 'chat'
     const [pacientes, setPacientes] = useState([]);
     const [selectedPaciente, setSelectedPaciente] = useState(null);
     const [historia, setHistoria] = useState({ consultas: [], examenes: [] });
-    // Modificado: Agregamos internalId para la validación de transferencia
-    const [medico, setMedico] = useState({ nombre: '', id: null, internalId: null });
-
-    // Nuevo Estado para lista de médicos (para reasignar)
+    const [medico, setMedico] = useState({ nombre: '', id: null, internalId: null, especialidad: '' });
     const [medicosList, setMedicosList] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    // MODALES
+    // --- MODALES ---
+    const [modalUser, setModalUser] = useState({ isOpen: false, data: null });
     const [modalConsulta, setModalConsulta] = useState({ isOpen: false, data: null });
     const [modalExamen, setModalExamen] = useState({ isOpen: false, data: null, consultaId: null });
-    // Nuevo Modal Paciente
-    const [modalPaciente, setModalPaciente] = useState({ isOpen: false, data: null });
 
-    // CHAT
+    // --- ALERTAS PERSONALIZADAS ---
+    const [alertConfig, setAlertConfig] = useState({
+        isOpen: false, title: '', message: '', type: 'info', confirmText: 'Aceptar', onConfirm: null, showCancel: false
+    });
+
+    const showAlert = (title, message, type = 'info', onConfirm = null, showCancel = false, confirmText = 'Aceptar') => {
+        setAlertConfig({ isOpen: true, title, message, type, onConfirm, showCancel, confirmText });
+    };
+
+    const closeAlert = () => setAlertConfig({ ...alertConfig, isOpen: false });
+
+    // --- CHAT ---
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
+    const [activeChat, setActiveChat] = useState(null);
     const ws = useRef(null);
 
     // --- HELPERS ---
@@ -39,34 +48,34 @@ function DashboardMedico() {
     };
 
     const formatDateForInput = (dateString) => {
-        if (!dateString) return ''; // Fix para evitar error si viene null
+        if (!dateString) return '';
         return new Date(dateString).toISOString().split('T')[0];
     };
 
-    // Nuevo Helper para Alergias
     const renderAlergias = (alergiasString) => {
-        if (!alergiasString) return <span style={{ color: '#ccc', fontSize: '12px' }}>Ninguna</span>;
+        if (!alergiasString) return <span style={{ color: '#ccc', fontSize: '11px' }}>Ninguna</span>;
         return alergiasString.split(',').map((alergia, index) => (
             <div key={index} style={{ whiteSpace: 'nowrap' }}>• {alergia.trim()}</div>
         ));
     };
+    const filteredPacientes = pacientes.filter(p => {
+        const term = searchTerm.toLowerCase();
+        const nombreCompleto = `${p.Nombre} ${p.Apellido}`.toLowerCase();
+        const identificacion = (p.Identificacion || '').toLowerCase();
+        return nombreCompleto.includes(term) || identificacion.includes(term);
+    });
 
-    // --- CARGA INICIAL ---
+    // --- CARGA DE DATOS ---
     useEffect(() => {
         const token = sessionStorage.getItem('token');
         const rol = parseInt(sessionStorage.getItem('rolId'));
-
         if (!token || rol !== 1) { navigate('/'); return; }
 
-        // NUEVA LÓGICA: Obtener nombre real
         const fetchProfile = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/core/me`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const res = await fetch(`${API_URL}/api/core/me`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.ok) {
                     const data = await res.json();
-                    // Seteamos nombre, apellido y especialidad reales
                     setMedico({
                         nombre: `${data.Nombre} ${data.Apellido}`,
                         id: sessionStorage.getItem('usuarioId'),
@@ -84,32 +93,24 @@ function DashboardMedico() {
     const cargarPacientes = async () => {
         try {
             const token = sessionStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/core/pacientes`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/api/core/pacientes`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (res.ok) {
                 const data = await res.json();
                 setPacientes(data);
-                // Guardamos el ID interno del médico si hay pacientes para comparar luego
-                if (data.length > 0) {
-                    setMedico(prev => ({ ...prev, internalId: data[0].MedicoID }));
-                }
+                if (data.length > 0) setMedico(prev => ({ ...prev, internalId: data[0].MedicoID }));
             }
         } catch (error) { console.error(error); }
     };
 
-    // Nueva función para cargar médicos
     const cargarListaMedicos = async () => {
         try {
             const token = sessionStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/core/lista-medicos`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/api/core/lista-medicos`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (res.ok) setMedicosList(await res.json());
         } catch (error) { console.error(error); }
     };
 
-    const verHistoria = async (paciente) => {
+    const verHistoria = (paciente) => {
         setSelectedPaciente(paciente);
         setView('detalle');
         recargarHistoria(paciente.UsuarioID);
@@ -126,49 +127,43 @@ function DashboardMedico() {
         } catch (error) { console.error(error); }
     };
 
-    // --- GESTIÓN DE PACIENTE ---
+    // --- ACCIONES ---
+
     const handleUpdatePaciente = async (e) => {
         e.preventDefault();
         const form = e.target;
         const nuevoMedicoId = parseInt(form.medicoId.value);
 
-        // Advertencia de transferencia
-        if (medico.internalId && nuevoMedicoId !== medico.internalId) {
-            const confirmTransfer = confirm("⚠️ ADVERTENCIA: Estás a punto de asignar este paciente a otro médico.\n\nSi continúas, dejarás de tener acceso a este paciente y desaparecerá de tu lista.\n\n¿Estás seguro?");
-            if (!confirmTransfer) return;
-        }
-
-        const payload = {
-            medicoId: nuevoMedicoId,
-            nombre: form.nombre.value,
-            apellido: form.apellido.value,
-            identificacion: form.identificacion.value,
-            fechaNacimiento: form.fechaNacimiento.value,
-            tipoSangre: form.tipoSangre.value,
-            direccion: form.direccion.value,
-            telefono: form.telefono.value,
-            alergias: form.alergias.value
-        };
-
-        try {
+        const ejecutarUpdate = async () => {
+            const payload = {
+                medicoId: nuevoMedicoId,
+                nombre: form.nombre.value,
+                apellido: form.apellido.value,
+                identificacion: form.identificacion.value,
+                fechaNacimiento: form.fechaNacimiento.value,
+                tipoSangre: form.tipoSangre.value,
+                direccion: form.direccion.value,
+                telefono: form.telefono.value,
+                alergias: form.alergias.value
+            };
             const token = sessionStorage.getItem('token');
-            const res = await fetch(`${API_URL}/api/core/pacientes/${modalPaciente.data.PacienteID}`, {
+            const res = await fetch(`${API_URL}/api/core/pacientes/${modalUser.data.PacienteID}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(payload)
             });
-
             if (res.ok) {
-                alert("Datos del paciente actualizados.");
-                setModalPaciente({ isOpen: false, data: null });
+                setModalUser({ isOpen: false, data: null });
                 cargarPacientes();
-            } else {
-                alert("Error al actualizar paciente.");
+                showAlert("Éxito", "Ficha actualizada", "success");
             }
-        } catch (err) { console.error(err); }
+        };
+
+        if (medico.internalId && nuevoMedicoId !== medico.internalId) {
+            showAlert("Transferencia", "¿Confirmas el cambio de médico?", "warning", ejecutarUpdate, true);
+        } else { ejecutarUpdate(); }
     };
 
-    // --- CRUD CONSULTAS ---
     const handleGuardarConsulta = async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -177,34 +172,26 @@ function DashboardMedico() {
             medicoId: medico.id,
             fecha: form.fecha.value,
             motivo: form.motivo.value,
-            sintomas: form.sintomas.value,
             diagnostico: form.diagnostico.value,
             tratamiento: form.tratamiento.value,
-            notas: form.notas.value
+            sintomas: form.sintomas.value,
+            notas: form.notas.value // Asegúrate de que exista en el form
         };
         const token = sessionStorage.getItem('token');
         const isEdit = modalConsulta.data !== null;
         const url = isEdit ? `${API_URL}/api/clinical/consultas/${modalConsulta.data.ConsultaID}` : `${API_URL}/api/clinical/consultas`;
-        const method = isEdit ? 'PUT' : 'POST';
 
         const res = await fetch(url, {
-            method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
 
         if (res.ok) {
             setModalConsulta({ isOpen: false, data: null });
             recargarHistoria(selectedPaciente.UsuarioID);
-        } else { alert("Error al guardar"); }
-    };
-
-    const handleEliminarConsulta = async (id) => {
-        if (!confirm("¿Eliminar consulta?")) return;
-        const token = sessionStorage.getItem('token');
-        await fetch(`${API_URL}/api/clinical/consultas/${id}`, {
-            method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-        });
-        recargarHistoria(selectedPaciente.UsuarioID);
+            showAlert("Éxito", "Consulta guardada", "success");
+        }
     };
 
     const handleGuardarExamen = async (e) => {
@@ -221,40 +208,26 @@ function DashboardMedico() {
         const token = sessionStorage.getItem('token');
         const isEdit = modalExamen.data !== null;
         const url = isEdit ? `${API_URL}/api/clinical/examenes/${modalExamen.data.ExamenID}` : `${API_URL}/api/clinical/examenes`;
-        const method = isEdit ? 'PUT' : 'POST';
 
         const res = await fetch(url, {
-            method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(payload)
         });
 
         if (res.ok) {
             setModalExamen({ isOpen: false, data: null, consultaId: null });
             recargarHistoria(selectedPaciente.UsuarioID);
-        } else { alert("Error al guardar"); }
+        }
     };
 
-    const handleEliminarExamen = async (id) => {
-        if (!confirm("¿Eliminar examen?")) return;
-        const token = sessionStorage.getItem('token');
-        await fetch(`${API_URL}/api/clinical/examenes/${id}`, {
-            method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-        });
-        recargarHistoria(selectedPaciente.UsuarioID);
-    };
-
-    // --- CHAT (Lógica original intacta) ---
-    const [activeChat, setActiveChat] = useState(null);
-
+    // --- LÓGICA CHAT ---
     useEffect(() => {
         if (activeChat && view === 'chat') {
             const myId = sessionStorage.getItem('usuarioId');
-            // 1. Cargar mensajes viejos
             fetch(`${API_URL}/api/chat/historial/${myId}/${activeChat.UsuarioID}`)
-                .then(res => res.json())
-                .then(data => setChatMessages(data));
+                .then(res => res.json()).then(data => setChatMessages(data));
 
-            // 2. Conectar WebSocket
             ws.current = new WebSocket(`ws://localhost:3004?userId=${myId}`);
             ws.current.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
@@ -268,313 +241,392 @@ function DashboardMedico() {
 
     const enviarMensaje = () => {
         if (!chatInput.trim() || !activeChat || !ws.current) return;
-
-        const mensaje = {
-            receptorId: activeChat.UsuarioID,
-            username: medico.nombre,
-            text: chatInput,
-            rol: 1
-        };
-
+        const mensaje = { receptorId: activeChat.UsuarioID, username: medico.nombre, text: chatInput, rol: 1 };
         ws.current.send(JSON.stringify(mensaje));
         setChatInput('');
     };
 
     return (
-        <div className="container">
-            {/* SIDEBAR */}
-            <aside className="sidebar">
-                <div className="profile-section">
-                    <div className="avatar"><i className="fas fa-user-md"></i></div>
-                    <h3>{medico.nombre}</h3>
-                    <p>{medico.especialidad || 'Médico General'}</p>
+        <div className="admin-layout">
+            <aside className="admin-sidebar">
+                <div className="admin-brand">
+                    <h1 className="logo-text">APOLO</h1>
+                    <span className="brand-badge">MÉDICO</span>
                 </div>
-                <nav>
-                    <button className={`nav-btn ${view !== 'chat' ? 'active' : ''}`} onClick={() => setView('pacientes')}>
-                        <i className="fas fa-user-injured"></i> Pacientes
+                <div className="admin-profile">
+                    <div className="avatar-circle"><i className="fas fa-user-md"></i></div>
+                    <div className="profile-info">
+                        <h3>{medico.nombre}</h3>
+                        <p>{medico.especialidad || 'Cargando...'}</p>
+                    </div>
+                </div>
+                <nav className="admin-nav">
+                    <button className={`nav-item ${view === 'pacientes' || view === 'detalle' ? 'active' : ''}`} onClick={() => setView('pacientes')}>
+                        <i className="fas fa-user-injured"></i> <span>Pacientes</span>
                     </button>
-                    <button className={`nav-btn ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
-                        <i className="fas fa-comments"></i> Chat Global
+                    <button className={`nav-item ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
+                        <i className="fas fa-comments"></i> <span>Chat Global</span>
                     </button>
-                    <button className="nav-btn logout" onClick={() => { sessionStorage.clear(); navigate('/'); }}>
-                        <i className="fas fa-sign-out-alt"></i> Cerrar Sesión
+                    <div className="nav-spacer" style={{ flex: 1 }}></div>
+                    <button className="nav-item logout" onClick={() => { sessionStorage.clear(); navigate('/'); }}>
+                        <i className="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span>
                     </button>
                 </nav>
             </aside>
 
-            {/* CONTENIDO PRINCIPAL */}
-            <main className="main-content">
-                <header>
-                    <div>
-                        <h1>Dashboard Médico</h1>
-                        <span>{new Date().toLocaleDateString()}</span>
+            <main className="admin-main">
+                <header className="admin-header">
+                    <div className="header-title">
+                        <h1>{view === 'pacientes' ? 'Mis Pacientes' : view === 'detalle' ? 'Historia Clínica' : 'Chat Directo'}</h1>
+                        <p>{new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button className="btn-secondary">ES</button>
-                        <button className="btn-secondary"><i className="fas fa-bell"></i></button>
-                    </div>
+
+                    {/* BUSCADOR ESTILO ADMIN (Solo se muestra en la vista de pacientes) */}
+                    {view === 'pacientes' && (
+                        <div className="header-search">
+                            <i className="fas fa-search"></i>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre o cédula..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    )}
                 </header>
 
-                {/* VISTA PACIENTES */}
-                {view === 'pacientes' && (
-                    <section className="content-section">
-                        <div className="section-header">
-                            <h2>Listado de Pacientes</h2>
-                            <input type="text" placeholder="Buscar paciente..." className="search-input" />
-                        </div>
-                        <div className="table-responsive">
-                            <table className="data-table">
+                <section className="admin-content">
+                    {view === 'pacientes' && (
+                        <div className="content-card">
+                            <table className="modern-table">
                                 <thead>
                                     <tr>
                                         <th>Identificación</th>
                                         <th>Paciente</th>
                                         <th>Edad</th>
                                         <th>Sangre</th>
-                                        <th>Dirección</th>
                                         <th>Celular</th>
                                         <th>Alergias</th>
-                                        <th style={{ textAlign: 'right' }}>Acciones</th>
+                                        <th>Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pacientes.map(p => (
+                                    {/* USAMOS SOLO filteredPacientes PARA EVITAR DUPLICADOS */}
+                                    {filteredPacientes.map(p => (
                                         <tr key={p.UsuarioID}>
-                                            <td style={{ fontWeight: 'bold', color: '#666' }}>{p.Identificacion || '--'}</td>
-                                            <td style={{ fontWeight: 'bold' }}>{p.Nombre} {p.Apellido}</td>
+                                            <td className="col-id">{p.Identificacion || '--'}</td>
+                                            <td className="col-name">{p.Nombre} {p.Apellido}</td>
                                             <td>{calcularEdad(p.FechaNacimiento)} años</td>
-
-                                            {/* Columnas Nuevas */}
-                                            <td>{p.TipoSangre || '--'}</td>
-                                            <td style={{ maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.Direccion}>{p.Direccion || '--'}</td>
+                                            <td>
+                                                {/* Badge dinámico para el tipo de sangre */}
+                                                <span className={`badge ${p.TipoSangre ? 'badge-success' : ''}`}
+                                                    style={{ background: p.TipoSangre ? '#eafbe7' : '#f0f2f5', color: p.TipoSangre ? '#42b72a' : '#65676b' }}>
+                                                    {p.TipoSangre || '--'}
+                                                </span>
+                                            </td>
                                             <td>{p.TelefonoContacto || '--'}</td>
-                                            {/* Alergias Verticales */}
-                                            <td style={{ fontSize: '12px', lineHeight: '1.4' }}>{renderAlergias(p.Alergias)}</td>
-
-                                            <td style={{ textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
-                                                    {/* Botón Editar (Nuevo) */}
-                                                    <button className="btn-secondary btn-sm" title="Editar Datos" onClick={() => setModalPaciente({ isOpen: true, data: p })}>
-                                                        <i className="fas fa-user-edit"></i>
-                                                    </button>
-
-                                                    {/* Botón Historia */}
-                                                    <button className="btn btn-primary btn-sm" onClick={() => verHistoria(p)}>
-                                                        <i className="fas fa-eye"></i> Historia
-                                                    </button>
-                                                </div>
+                                            <td style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600' }}>
+                                                {renderAlergias(p.Alergias)}
+                                            </td>
+                                            <td className="col-actions">
+                                                <button className="action-btn edit" title="Editar Ficha" onClick={() => setModalUser({ isOpen: true, data: p })}>
+                                                    <i className="fas fa-user-edit"></i>
+                                                </button>
+                                                <button className="action-btn edit" title="Ver Historia" onClick={() => verHistoria(p)}>
+                                                    <i className="fas fa-file-medical"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
-                                    {pacientes.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>No hay pacientes asignados.</td></tr>}
+
+                                    {/* Mensaje de "No encontrado" dentro del mismo tbody */}
+                                    {filteredPacientes.length === 0 && (
+                                        <tr>
+                                            <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#65676b' }}>
+                                                {pacientes.length === 0
+                                                    ? "No hay pacientes asignados."
+                                                    : `No se encontraron pacientes que coincidan con "${searchTerm}"`}
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
-                    </section>
-                )}
+                    )}
 
-                {/* VISTA DETALLE HISTORIA */}
-                {view === 'detalle' && selectedPaciente && (
-                    <section className="content-section">
-                        <button className="btn-secondary" onClick={() => setView('pacientes')} style={{ marginBottom: '20px' }}>
-                            <i className="fas fa-arrow-left"></i> Regresar
-                        </button>
-
-                        <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', borderLeft: '4px solid var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{selectedPaciente.Nombre} {selectedPaciente.Apellido}</h2>
-                                <p style={{ margin: '5px 0 0', color: 'var(--text-muted)' }}>ID: {selectedPaciente.Identificacion} | {calcularEdad(selectedPaciente.FechaNacimiento)} años</p>
+                    {/* VISTA DETALLE HISTORIA - Sección de Consultas y Exámenes */}
+                    {view === 'detalle' && selectedPaciente && (
+                        <div className="history-container">
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+                                <button className="btn btn-danger" onClick={() => setView('pacientes')} style={{ width: 'auto' }}>
+                                    <i className="fas fa-arrow-left"></i> Regresar
+                                </button>
                             </div>
-                            <button className="btn btn-primary" onClick={() => setModalConsulta({ isOpen: true, data: null })}>
-                                <i className="fas fa-plus"></i> Nueva Consulta
-                            </button>
-                        </div>
 
-                        <h3 style={{ color: 'var(--text-muted)', fontSize: '16px', marginTop: '25px', textTransform: 'uppercase' }}>Historia Clínica</h3>
-
-                        {historia.consultas.map(c => (
-                            <div key={c.ConsultaID} className="exam-card">
-                                <div className="card-actions">
-                                    <button className="btn-secondary btn-sm" title="Adjuntar Examen" onClick={() => setModalExamen({ isOpen: true, data: null, consultaId: c.ConsultaID })}>
-                                        <i className="fas fa-file-medical"></i> Agregar Examen
+                            {/* Card del Paciente */}
+                            <div className="content-card" style={{ padding: '20px', marginBottom: '25px', borderLeft: '5px solid var(--primary)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div>
+                                        <h2 style={{ margin: 0 }}>{selectedPaciente.Nombre} {selectedPaciente.Apellido}</h2>
+                                        <p style={{ color: 'var(--text-secondary)', margin: '5px 0' }}>Cédula: {selectedPaciente.Identificacion}</p>
+                                    </div>
+                                    <button className="btn btn-primary" style={{ width: 'auto' }} onClick={() => setModalConsulta({ isOpen: true, data: null })}>
+                                        <i className="fas fa-plus"></i> Nueva Consulta
                                     </button>
-                                    <button className="btn-icon" title="Editar" onClick={() => setModalConsulta({ isOpen: true, data: c })}><i className="fas fa-edit"></i></button>
-                                    <button className="btn-danger-icon" title="Eliminar" onClick={() => handleEliminarConsulta(c.ConsultaID)}><i className="fas fa-trash"></i></button>
-                                </div>
-
-                                <div className="card-meta">{new Date(c.FechaConsulta).toLocaleDateString()} - Dr. {medico.nombre}</div>
-                                <h3 className="card-title">{c.MotivoConsulta}</h3>
-
-                                <div className="card-body">
-                                    <p><strong>Dx:</strong> {c.Diagnostico}</p>
-                                    <p><strong>Tx:</strong> {c.Tratamiento}</p>
-                                    {c.Sintomas && <p><strong>Síntomas:</strong> {c.Sintomas}</p>}
-                                    {c.NotasAdicionales && <p><strong>Notas:</strong> {c.NotasAdicionales}</p>}
-                                </div>
-
-                                <div className="exam-list">
-                                    <strong style={{ fontSize: '13px', color: 'var(--text-main)' }}><i className="fas fa-paperclip"></i> Exámenes adjuntos:</strong>
-                                    {historia.examenes.filter(e => e.ConsultaID === c.ConsultaID).map(e => (
-                                        <div key={e.ExamenID} className="exam-item">
-                                            <div>
-                                                <strong>{e.TipoExamen}</strong> <span style={{ color: '#999' }}>({new Date(e.FechaRealizacion).toLocaleDateString()})</span>
-                                                {e.RutaArchivo && e.RutaArchivo !== '#' && <a href={e.RutaArchivo} target="_blank" rel="noreferrer" style={{ marginLeft: '10px', fontSize: '12px' }}>Ver archivo</a>}
-                                                <p style={{ margin: '2px 0 0', color: '#666', fontSize: '13px' }}>{e.ObservacionesResultados}</p>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '5px' }}>
-                                                <button className="btn-icon" onClick={() => setModalExamen({ isOpen: true, data: e, consultaId: c.ConsultaID })}><i className="fas fa-edit"></i></button>
-                                                <button className="btn-danger-icon" onClick={() => handleEliminarExamen(e.ExamenID)}><i className="fas fa-trash"></i></button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {historia.examenes.filter(e => e.ConsultaID === c.ConsultaID).length === 0 && <div style={{ fontSize: '13px', color: '#999', marginTop: '5px', fontStyle: 'italic' }}>Sin exámenes.</div>}
                                 </div>
                             </div>
-                        ))}
-                    </section>
-                )}
 
-                {/* VISTA CHAT (Sin cambios visuales grandes, pero ajustado a la estructura) */}
-                {view === 'chat' && (
-                    <section className="content-section">
-                        <div className="chat-layout">
-                            <div className="chat-sidebar">
-                                <div style={{ padding: '15px', fontWeight: 'bold', borderBottom: '1px solid #eee' }}>Mis Pacientes</div>
+                            {/* Listado de Consultas */}
+                            {historia.consultas.map(c => (
+                                <div key={c.ConsultaID} className="content-card" style={{ padding: '20px', marginBottom: '15px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <span className="badge badge-success">{new Date(c.FechaConsulta).toLocaleDateString()}</span>
+
+                                        {/* ACCIONES DE LA CONSULTA */}
+                                        <div className="col-actions">
+                                            <button className="action-btn edit" title="Adjuntar Examen" onClick={() => setModalExamen({ isOpen: true, data: null, consultaId: c.ConsultaID })}>
+                                                <i className="fas fa-file-medical"></i>
+                                            </button>
+                                            <button className="action-btn edit" title="Editar Consulta" onClick={() => setModalConsulta({ isOpen: true, data: c })}>
+                                                <i className="fas fa-pen"></i>
+                                            </button>
+                                            <button className="action-btn delete" title="Eliminar Consulta" onClick={() => {
+                                                showAlert("Eliminar Consulta", "¿Borrar registro?", "danger", async () => {
+                                                    const token = sessionStorage.getItem('token');
+                                                    await fetch(`${API_URL}/api/clinical/consultas/${c.ConsultaID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                                    recargarHistoria(selectedPaciente.UsuarioID);
+                                                }, true);
+                                            }}>
+                                                <i className="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <h3 style={{ margin: '10px 0', color: 'var(--primary)', textAlign: 'left' }}>{c.MotivoConsulta}</h3>
+                                    <p style={{ textAlign: 'left' }}><strong>Diagnóstico:</strong> {c.Diagnostico}</p>
+                                    <p style={{ textAlign: 'left' }}><strong>Tratamiento:</strong> {c.Tratamiento}</p>
+
+                                    <div className="separator"></div>
+
+                                    {/* LISTADO DE EXÁMENES CON DISEÑO DE BOTONES CIRCULARES */}
+                                    <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'left' }}>
+                                        <strong style={{ fontSize: '13px', display: 'block', marginBottom: '10px' }}>
+                                            <i className="fas fa-paperclip"></i> Exámenes adjuntos:
+                                        </strong>
+
+                                        {historia.examenes.filter(e => e.ConsultaID === c.ConsultaID).map(e => (
+                                            <div key={e.ExamenID} style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center', // Centra verticalmente todo el renglón
+                                                padding: '8px 0',
+                                                borderBottom: '1px solid #eee'
+                                            }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '14px', lineHeight: '1.2' }}>{e.TipoExamen}</span>
+                                                    <span style={{ fontSize: '12px', color: '#888' }}>({new Date(e.FechaRealizacion).toLocaleDateString()})</span>
+                                                </div>
+
+                                                {/* CONTENEDOR DE ACCIONES */}
+                                                <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {e.RutaArchivo && e.RutaArchivo !== '#' && (
+                                                        <a
+                                                            href={e.RutaArchivo}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="action-btn edit"
+                                                            title="Ver archivo"
+                                                            style={{
+                                                                textDecoration: 'none',
+                                                                display: 'flex',      // Asegura que el icono dentro se centre
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                lineHeight: '0'       // Evita que el texto fantasma suba el icono
+                                                            }}
+                                                        >
+                                                            <i className="fas fa-eye" style={{ fontSize: '16px' }}></i>
+                                                        </a>
+                                                    )}
+                                                    <button
+                                                        className="action-btn delete"
+                                                        title="Eliminar examen"
+                                                        onClick={() => {
+                                                            showAlert("Eliminar Examen", "¿Borrar este examen?", "danger", async () => {
+                                                                const token = sessionStorage.getItem('token');
+                                                                await fetch(`${API_URL}/api/clinical/examenes/${e.ExamenID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                                                recargarHistoria(selectedPaciente.UsuarioID);
+                                                            }, true);
+                                                        }}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            lineHeight: '0'
+                                                        }}
+                                                    >
+                                                        <i className="fas fa-trash-alt" style={{ fontSize: '16px' }}></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {historia.examenes.filter(e => e.ConsultaID === c.ConsultaID).length === 0 && (
+                                            <p style={{ fontSize: '12px', color: '#999', margin: 0, fontStyle: 'italic' }}>No hay exámenes adjuntos.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {view === 'chat' && (
+                        <div className="content-card" style={{ height: '70vh', display: 'flex', overflow: 'hidden' }}>
+                            <div style={{ width: '250px', borderRight: '1px solid var(--border)', background: '#f8f9fa' }}>
+                                <div style={{ padding: '15px', fontWeight: '800', fontSize: '12px', color: 'var(--text-secondary)' }}>MIS PACIENTES</div>
                                 {pacientes.map(p => (
                                     <div key={p.UsuarioID}
-                                        className={`patient-item ${activeChat?.UsuarioID === p.UsuarioID ? 'active' : ''}`}
-                                        onClick={() => { setActiveChat(p); setChatMessages([]); }}>
+                                        onClick={() => { setActiveChat(p); setChatMessages([]); }}
+                                        style={{ padding: '12px 15px', cursor: 'pointer', borderBottom: '1px solid #eee', background: activeChat?.UsuarioID === p.UsuarioID ? '#e7f3ff' : 'transparent', textAlign: 'left' }}>
                                         {p.Nombre} {p.Apellido}
                                     </div>
                                 ))}
                             </div>
-                            <div className="chat-main">
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                 {activeChat ? (
                                     <>
-                                        <div className="chat-messages">
-                                            {chatMessages.filter(m => m.userId === activeChat.UsuarioID || m.receptorId === activeChat.UsuarioID).map((msg, i) => (
-                                                <div key={i} className={`message-bubble ${msg.userId === activeChat.UsuarioID ? 'incoming' : 'outgoing'}`}>
-                                                    <span style={{ fontSize: '10px', display: 'block', opacity: 0.7, marginBottom: '2px' }}>
-                                                        {msg.userId === activeChat.UsuarioID ? `${activeChat.Nombre}` : 'Yo'}
-                                                    </span>
+                                        <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            {chatMessages.map((msg, i) => (
+                                                <div key={i} style={{ alignSelf: msg.userId === activeChat.UsuarioID ? 'flex-start' : 'flex-end', background: msg.userId === activeChat.UsuarioID ? '#f0f2f5' : 'var(--primary)', color: msg.userId === activeChat.UsuarioID ? 'black' : 'white', padding: '8px 15px', borderRadius: '18px', maxWidth: '70%', fontSize: '14px' }}>
                                                     {msg.text}
                                                 </div>
                                             ))}
                                         </div>
-                                        <div style={{ padding: '15px', display: 'flex', gap: '10px', background: '#fff', borderTop: '1px solid #eee' }}>
-                                            <input
-                                                value={chatInput}
-                                                onChange={(e) => setChatInput(e.target.value)}
-                                                placeholder={`Escribir a ${activeChat.Nombre}...`}
-                                                style={{ flex: 1, padding: '10px', borderRadius: '20px', border: '1px solid #ddd', outline: 'none' }}
-                                                onKeyDown={(e) => e.key === 'Enter' && enviarMensaje()}
-                                            />
-                                            <button className="btn btn-primary" onClick={enviarMensaje}>
-                                                <i className="fas fa-paper-plane"></i>
-                                            </button>
+                                        <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px' }}>
+                                            <input className="small-input" style={{ flex: 1, borderRadius: '20px' }} value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Escribe un mensaje..." onKeyDown={e => e.key === 'Enter' && enviarMensaje()} />
+                                            <button className="btn btn-primary" style={{ width: '50px', margin: 0 }} onClick={enviarMensaje}><i className="fas fa-paper-plane"></i></button>
                                         </div>
                                     </>
                                 ) : (
-                                    <div style={{ margin: 'auto', color: '#999' }}>Selecciona un paciente para chatear</div>
+                                    <div style={{ margin: 'auto', color: 'var(--text-secondary)' }}>Selecciona un paciente para iniciar el chat</div>
                                 )}
                             </div>
                         </div>
-                    </section>
-                )}
+                    )}
+                </section>
             </main>
-
-            {/* MODAL EDICIÓN PACIENTE */}
-            {modalPaciente.isOpen && (
-                <div className="modal">
-                    <div className="modal-content" style={{ maxWidth: '600px' }}>
-                        <span className="close-modal" onClick={() => setModalPaciente({ isOpen: false, data: null })}>&times;</span>
-                        <h2>Editar Datos del Paciente</h2>
-                        <form onSubmit={handleUpdatePaciente}>
-                            <div style={{ background: '#fff3cd', padding: '10px', borderRadius: '5px', marginBottom: '15px', fontSize: '13px', color: '#856404', border: '1px solid #ffeeba' }}>
-                                <i className="fas fa-exclamation-triangle"></i> Si cambias el <strong>Médico Asignado</strong>, el paciente desaparecerá de tu lista.
+            {/* MODAL CONSULTA (Corregido con Notas Adicionales) */}
+            {modalConsulta.isOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-card">
+                        <button className="cerrar" onClick={() => setModalConsulta({ isOpen: false })}><i className="fas fa-times"></i></button>
+                        <h2 style={{ color: 'var(--primary)' }}>{modalConsulta.data ? 'Editar Consulta' : 'Nueva Consulta'}</h2>
+                        <div className="separator"></div>
+                        <form onSubmit={handleGuardarConsulta}>
+                            <div className="field-container">
+                                <label className="field-label">Fecha</label>
+                                <input type="date" name="fecha" className="small-input" defaultValue={formatDateForInput(modalConsulta.data?.FechaConsulta || new Date())} required />
                             </div>
-
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Médico Asignado</label>
-                                    <select name="medicoId" required defaultValue={modalPaciente.data?.MedicoID}>
-                                        {medicosList.map(m => (
-                                            <option key={m.MedicoID} value={m.MedicoID}>Dr. {m.Nombre} {m.Apellido} ({m.Especialidad})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-group"><label>Nombre</label><input name="nombre" required defaultValue={modalPaciente.data?.Nombre} /></div>
-                                <div className="form-group"><label>Apellido</label><input name="apellido" required defaultValue={modalPaciente.data?.Apellido} /></div>
+                            <div className="field-container">
+                                <label className="field-label">Motivo</label>
+                                <input name="motivo" className="small-input" defaultValue={modalConsulta.data?.MotivoConsulta} required />
                             </div>
                             <div className="form-row">
-                                <div className="form-group"><label>Identificación</label><input name="identificacion" required defaultValue={modalPaciente.data?.Identificacion} /></div>
-                                <div className="form-group"><label>F. Nacimiento</label><input type="date" name="fechaNacimiento" required defaultValue={formatDateForInput(modalPaciente.data?.FechaNacimiento)} /></div>
+                                <div className="field-container"><label className="field-label">Diagnóstico</label><input name="diagnostico" className="small-input" defaultValue={modalConsulta.data?.Diagnostico} required /></div>
+                                <div className="field-container"><label className="field-label">Tratamiento</label><input name="tratamiento" className="small-input" defaultValue={modalConsulta.data?.Tratamiento} required /></div>
                             </div>
-                            <div className="form-row">
-                                <div className="form-group"><label>Celular</label><input name="telefono" defaultValue={modalPaciente.data?.TelefonoContacto} /></div>
-                                <div className="form-group"><label>Tipo Sangre</label><input name="tipoSangre" style={{ width: '80px' }} defaultValue={modalPaciente.data?.TipoSangre} /></div>
+                            <div className="field-container"><label className="field-label">Síntomas</label><textarea name="sintomas" className="small-input" defaultValue={modalConsulta.data?.Sintomas} rows="2"></textarea></div>
+                            <div className="field-container"><label className="field-label">Notas Adicionales</label><textarea name="notas" className="small-input" defaultValue={modalConsulta.data?.NotasAdicionales} rows="2"></textarea></div>
+                            <div className="modal-actions-inline">
+                                <button type="submit" className="btn btn-primary">Guardar</button>
+                                <button type="button" className="btn btn-danger" onClick={() => setModalConsulta({ isOpen: false })}>Cerrar</button>
                             </div>
-                            <div className="form-group"><label>Dirección</label><input name="direccion" defaultValue={modalPaciente.data?.Direccion} /></div>
-
-                            <div className="form-group">
-                                <label>Alergias</label>
-                                <textarea name="alergias" rows="3" defaultValue={modalPaciente.data?.Alergias}></textarea>
-                                <small style={{ color: '#606770', fontSize: '12px', marginTop: '4px', display: 'block' }}>
-                                    <i className="fas fa-info-circle"></i> Separa las alergias con <strong>comas (,)</strong> para visualizarlas correctamente.
-                                </small>
-                            </div>
-
-                            <button type="submit" className="btn btn-primary">Guardar Cambios</button>
                         </form>
                     </div>
                 </div>
             )}
-
-            {/* MODAL CONSULTA */}
-            {modalConsulta.isOpen && (
-                <div className="modal">
-                    <div className="modal-content">
-                        <span className="close-modal" onClick={() => setModalConsulta({ isOpen: false, data: null })}>&times;</span>
-                        {modalConsulta.isOpen && (
-                            <form onSubmit={handleGuardarConsulta}>
-                                <h2>{modalConsulta.data ? 'Editar Consulta' : 'Registrar Consulta'}</h2>
-                                <div className="form-group"><label>Fecha</label><input type="date" name="fecha" required defaultValue={formatDateForInput(modalConsulta.data?.FechaConsulta)} /></div>
-                                <div className="form-group"><label>Motivo</label><input name="motivo" required defaultValue={modalConsulta.data?.MotivoConsulta} /></div>
-                                <div className="form-row">
-                                    <div className="form-group"><label>Diagnóstico</label><input name="diagnostico" required defaultValue={modalConsulta.data?.Diagnostico} /></div>
-                                    <div className="form-group"><label>Tratamiento</label><input name="tratamiento" required defaultValue={modalConsulta.data?.Tratamiento} /></div>
-                                </div>
-                                <div className="form-group"><label>Síntomas</label><textarea name="sintomas" rows="2" defaultValue={modalConsulta.data?.Sintomas}></textarea></div>
-                                <div className="form-group"><label>Notas Adicionales</label><textarea name="notas" rows="2" defaultValue={modalConsulta.data?.NotasAdicionales}></textarea></div>
-                                <button type="submit" className="btn btn-primary">Guardar</button>
-                            </form>
-                        )}
+            {modalUser.isOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-card">
+                        <button className="cerrar" onClick={() => setModalUser({ isOpen: false })}><i className="fas fa-times"></i></button>
+                        <h2 style={{ color: 'var(--primary)' }}>Ficha del Paciente</h2>
+                        <div className="separator"></div>
+                        <form onSubmit={handleUpdatePaciente}>
+                            <div className="field-container">
+                                <label className="field-label">Médico Asignado</label>
+                                <select name="medicoId" className="small-input" defaultValue={modalUser.data?.MedicoID}>
+                                    {medicosList.map(m => <option key={m.MedicoID} value={m.MedicoID}>Dr. {m.Nombre} {m.Apellido}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-row">
+                                <div className="field-container"><label className="field-label">Nombre</label><input name="nombre" className="small-input" defaultValue={modalUser.data?.Nombre} required /></div>
+                                <div className="field-container"><label className="field-label">Apellido</label><input name="apellido" className="small-input" defaultValue={modalUser.data?.Apellido} required /></div>
+                            </div>
+                            <div className="form-row">
+                                <div className="field-container"><label className="field-label">Cédula</label><input name="identificacion" className="small-input" defaultValue={modalUser.data?.Identificacion} required /></div>
+                                <div className="field-container"><label className="field-label">F. Nacimiento</label><input type="date" name="fechaNacimiento" className="small-input" defaultValue={formatDateForInput(modalUser.data?.FechaNacimiento)} required /></div>
+                            </div>
+                            <div className="form-row">
+                                <div className="field-container"><label className="field-label">Teléfono</label><input name="telefono" className="small-input" defaultValue={modalUser.data?.TelefonoContacto} /></div>
+                                <div className="field-container"><label className="field-label">Sangre</label><input name="tipoSangre" className="small-input" defaultValue={modalUser.data?.TipoSangre} /></div>
+                            </div>
+                            <div className="field-container"><label className="field-label">Dirección</label><input name="direccion" className="small-input" defaultValue={modalUser.data?.Direccion} /></div>
+                            <div className="field-container"><label className="field-label">Alergias</label><textarea name="alergias" className="small-input" defaultValue={modalUser.data?.Alergias} rows="2"></textarea></div>
+                            <div className="modal-actions-inline">
+                                <button type="submit" className="btn btn-primary">Guardar cambios</button>
+                                <button type="button" className="btn btn-danger" onClick={() => setModalUser({ isOpen: false })}>Cancelar</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
 
             {/* MODAL EXAMEN */}
             {modalExamen.isOpen && (
-                <div className="modal">
-                    <div className="modal-content">
-                        <span className="close-modal" onClick={() => setModalExamen({ isOpen: false, data: null, consultaId: null })}>&times;</span>
-                        <h2>{modalExamen.data ? 'Editar Examen' : 'Adjuntar Examen'}</h2>
+                <div className="modal-overlay">
+                    <div className="modal-card">
+                        <button className="cerrar" onClick={() => setModalExamen({ isOpen: false })}><i className="fas fa-times"></i></button>
+                        <h2 style={{ color: 'var(--primary)' }}>{modalExamen.data ? 'Editar Examen' : 'Adjuntar Examen'}</h2>
+                        <div className="separator"></div>
                         <form onSubmit={handleGuardarExamen}>
                             <div className="form-row">
-                                <div className="form-group">
-                                    <label>Tipo</label>
-                                    <select name="tipo" required defaultValue={modalExamen.data?.TipoExamen}>
+                                <div className="field-container">
+                                    <label className="field-label">Tipo</label>
+                                    <select name="tipo" className="small-input" required defaultValue={modalExamen.data?.TipoExamen}>
                                         <option>Laboratorio</option><option>Rayos X</option><option>Ecografía</option><option>Otro</option>
                                     </select>
                                 </div>
-                                <div className="form-group"><label>Fecha Realización</label><input type="date" name="fecha" required defaultValue={formatDateForInput(modalExamen.data?.FechaRealizacion)} /></div>
+                                <div className="field-container">
+                                    <label className="field-label">Fecha</label>
+                                    <input type="date" name="fecha" className="small-input" required defaultValue={formatDateForInput(modalExamen.data?.FechaRealizacion || new Date())} />
+                                </div>
                             </div>
-                            <div className="form-group"><label>URL del Archivo (Opcional)</label><input type="text" name="ruta" placeholder="https://..." defaultValue={modalExamen.data?.RutaArchivo !== '#' ? modalExamen.data?.RutaArchivo : ''} /></div>
-                            <div className="form-group"><label>Observaciones/Resultados</label><textarea name="observaciones" rows="3" defaultValue={modalExamen.data?.ObservacionesResultados}></textarea></div>
-                            <button type="submit" className="btn btn-primary">Guardar</button>
+                            <div className="field-container">
+                                <label className="field-label">URL Archivo</label>
+                                <input name="ruta" className="small-input" defaultValue={modalExamen.data?.RutaArchivo} placeholder="https://..." />
+                            </div>
+                            <div className="field-container">
+                                <label className="field-label">Observaciones</label>
+                                <textarea name="observaciones" className="small-input" defaultValue={modalExamen.data?.ObservacionesResultados} rows="3"></textarea>
+                            </div>
+                            <div className="modal-actions-inline">
+                                <button type="submit" className="btn btn-primary">Guardar</button>
+                                <button type="button" className="btn btn-danger" onClick={() => setModalExamen({ isOpen: false })}>Cancelar</button>
+                            </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL ALERTA */}
+            {alertConfig.isOpen && (
+                <div className="modal-overlay" style={{ zIndex: 3000 }}>
+                    <div className="modal-card notification-modal">
+                        <div className={`${alertConfig.type}-icon`}>{alertConfig.type === 'success' ? '✓' : alertConfig.type === 'danger' ? '✕' : '!'}</div>
+                        <h2 className={alertConfig.type === 'danger' ? 'text-danger' : ''}>{alertConfig.title}</h2>
+                        <p>{alertConfig.message}</p>
+                        <div className="modal-actions-inline">
+                            <button className="btn btn-primary" onClick={() => { alertConfig.onConfirm?.(); closeAlert(); }}>{alertConfig.confirmText}</button>
+                            {alertConfig.showCancel && <button className="btn btn-danger" onClick={closeAlert}>Cancelar</button>}
+                        </div>
                     </div>
                 </div>
             )}

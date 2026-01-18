@@ -170,7 +170,7 @@ function Login() {
 
       {/* --- MODAL DE 2FA --- */}
       {showModal && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
           <div className="modal-card">
             <h2>Verificación de seguridad</h2>
             <p>Introduce el código enviado a <strong>{tempData?.email}</strong></p>
