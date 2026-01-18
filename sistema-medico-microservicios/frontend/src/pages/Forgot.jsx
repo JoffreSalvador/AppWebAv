@@ -4,12 +4,14 @@ import { Link } from 'react-router-dom';
 import '../css/styles.css';
 import { auth } from "../firebaseConfig";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { useNavigate } from 'react-router-dom';
 
 function Forgot() {
     const [msg, setMsg] = useState('');
     const [msgColor, setMsgColor] = useState('#606770');
     const [loading, setLoading] = useState(false);
     const [sent, setSent] = useState(false);
+    const navigate = useNavigate(); 
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -76,12 +78,11 @@ function Forgot() {
                             </div>
 
                             <div className="modal-actions-inline" style={{ marginTop: '20px', borderTop: '1px solid #dddfe2', paddingTop: '20px' }}>
-                                <Link to="/" className="btn-danger" style={{ flex: 1, textDecoration: 'none', textAlign: 'center', backgroundColor: '#e4e6eb', color: '#4b4f56' }}>
-                                    Cancelar
-                                </Link>
+                                
                                 <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
                                     {loading ? 'Buscando...' : 'Continuar'}
                                 </button>
+                                <button className="btn btn-danger" type="button" onClick={() => navigate('/')} style={{ flex: 1 }}>Cancelar</button>
                             </div>
                         </form>
                     )}

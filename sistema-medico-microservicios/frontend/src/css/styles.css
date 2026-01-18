@@ -308,7 +308,7 @@ button, .btn {
 
 /* Botón Rojo (Cancelar) */
 .btn-danger {
-    background-color: #767676 ; /* Rojo */
+    background-color: #767676 ; 
     color: white;
     border: none;
     padding: 10px 20px;
@@ -320,7 +320,7 @@ button, .btn {
 }
 
 .btn-danger:hover {
-    background-color: #555555; /* Rojo más oscuro al pasar el mouse */
+    background-color: #6d6d6d; /* Rojo más oscuro al pasar el mouse */
 }
 
 /* Asegurar que el botón azul se vea bien al lado */
