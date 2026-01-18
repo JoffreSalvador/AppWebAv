@@ -1,17 +1,17 @@
 // src/controllers/profileController.js
 const profileRepo = require('../repositories/profileRepository');
+const { getConnection, sql } = require('../config/db');
+const { registrarLog } = require('../utils/logger');
 
 const createMedicoProfile = async (req, res) => {
     try {
         const { id } = req.user;
-        // CAMBIO AQUÍ: Cambiamos 'licencia' por 'numeroLicencia' para que coincida con el input
         const { nombre, apellido, identificacion, especialidad, numeroLicencia, telefono } = req.body;
 
         if (!numeroLicencia) {
             return res.status(400).json({ message: "El número de licencia es obligatorio para médicos." });
         }
 
-        // Pasamos numeroLicencia al repositorio (asegúrate que el repo use este nombre o cámbialo allí también)
         await profileRepo.createMedico({
             usuarioId: id,
             nombre,
@@ -20,6 +20,11 @@ const createMedicoProfile = async (req, res) => {
             especialidad,
             licencia: numeroLicencia,
             telefono
+        });
+
+        await registrarLog({
+            nivel: 'INFO', servicio: 'CoreService', usuarioId: id, rolId: 1,
+            accion: 'Crear_Perfil_Medico', detalles: { nombre, licencia: numeroLicencia }
         });
 
         res.status(201).json({ message: 'Perfil de médico creado' });
@@ -31,7 +36,7 @@ const createMedicoProfile = async (req, res) => {
 
 const getMyPacientes = async (req, res) => {
     try {
-        const { id } = req.user; // ID del Usuario (Medico)
+        const { id } = req.user;
         const pacientes = await profileRepo.getPacientesByMedico(id);
         res.json(pacientes);
     } catch (error) {
@@ -44,6 +49,7 @@ const createPacienteProfile = async (req, res) => {
     try {
         const { usuarioId, nombre, apellido, fechaNacimiento, identificacion, telefono } = req.body;
         const finalUserId = usuarioId || (req.user ? req.user.id : null);
+        const creadorId = req.user ? req.user.id : finalUserId;
 
         // --- CAMBIO CLAVE: BUSQUEDA AUTOMÁTICA DE MÉDICO ---
         const medicoIdAsignado = await profileRepo.getAvailableMedico('Medicina General');
@@ -60,6 +66,15 @@ const createPacienteProfile = async (req, res) => {
             identificacion, 
             telefono,
             medicoId: medicoIdAsignado // Se asigna el ID 6 (o el que encuentre)
+        });
+
+        await registrarLog({
+            nivel: 'INFO', servicio: 'CoreService', usuarioId: creadorId, 
+            accion: 'Crear_Perfil_Paciente', 
+            detalles: { 
+                paciente: `${nombre} ${apellido}`, 
+                medicoAsignado: medicoIdAsignado 
+            }
         });
         
         res.status(201).json({ message: 'Perfil creado y asignado al Dr. ' + medicoIdAsignado });
@@ -103,9 +118,57 @@ const getMedicosList = async (req, res) => {
 
 const updatePacienteProfile = async (req, res) => {
     try {
-        const { id } = req.params; // ID del paciente a editar
-        // data trae: nombre, apellido, medicoId, alergias, etc.
+        const { id } = req.params; // ID del Paciente (ProfileID)
+        const editorId = req.user.id; // ID del Usuario que hace el cambio (Admin o Médico)
+        const rolEditor = req.user.rol;
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+        // 1. SNAPSHOT: Obtener los datos VIEJOS antes de editar
+        const pool = await getConnection();
+        const oldDataRes = await pool.request()
+            .input('ID', sql.Int, id)
+            .query('SELECT * FROM Pacientes WHERE PacienteID = @ID');
+        
+        const oldData = oldDataRes.recordset[0];
+
+        // 2. EJECUTAR LA ACTUALIZACIÓN
         await profileRepo.updatePaciente(id, req.body);
+
+        // 3. COMPARAR Y REGISTRAR LOG
+        let accionLog = 'Editar_Paciente';
+        let mensajeLog = 'Actualización de datos generales';
+
+        // Detectamos si hubo reasignación de médico
+        if (oldData && req.body.medicoId && oldData.MedicoID != req.body.medicoId) {
+            accionLog = 'Reasignacion_Paciente';
+            mensajeLog = `Paciente transferido del Médico ID ${oldData.MedicoID} al ${req.body.medicoId}`;
+        }
+
+        await registrarLog({
+            nivel: 'WARNING', // Warning porque editar datos es sensible
+            servicio: 'CoreService',
+            usuarioId: editorId,
+            rolId: rolEditor,
+            ip: ip,
+            accion: accionLog,
+            detalles: {
+                mensaje: mensajeLog,
+                pacienteID: id,
+                cambios: {
+                    antes: {
+                        medicoId: oldData?.MedicoID,
+                        direccion: oldData?.Direccion,
+                        telefono: oldData?.TelefonoContacto
+                    },
+                    despues: {
+                        medicoId: req.body.medicoId,
+                        direccion: req.body.direccion,
+                        telefono: req.body.telefono
+                    }
+                }
+            }
+        });
+
         res.json({ message: 'Paciente actualizado correctamente' });
     } catch (error) {
         console.error(error);

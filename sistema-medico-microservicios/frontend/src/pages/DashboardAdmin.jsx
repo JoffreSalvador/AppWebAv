@@ -9,21 +9,16 @@ function DashboardAdmin() {
     const [tab, setTab] = useState('medicos');
     const [medicos, setMedicos] = useState([]);
     const [pacientes, setPacientes] = useState([]);
+    const [auditoria, setAuditoria] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Modales de datos
     const [modalUser, setModalUser] = useState({ isOpen: false, type: '', data: null });
-    const [modalReassign, setModalReassign] = useState({ isOpen: false });
+    const [modalReassign, setModalReassign] = useState({ isOpen: false, pacientes: [], doctorIdToDelete: null });
 
     // --- NUEVO ESTADO PARA EL MODAL DE ALERT/CONFIRM ---
     const [alertConfig, setAlertConfig] = useState({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'info', // 'danger' | 'success' | 'warning'
-        confirmText: 'Aceptar',
-        onConfirm: null,
-        showCancel: false
+        isOpen: false, title: '', message: '', type: 'info', confirmText: 'Aceptar', onConfirm: null, showCancel: false
     });
 
     // Función para abrir el nuevo modal de forma fácil
@@ -48,87 +43,105 @@ function DashboardAdmin() {
                 const data = await res.json();
                 setMedicos(Array.isArray(data.medicos) ? data.medicos : []);
                 setPacientes(Array.isArray(data.pacientes) ? data.pacientes : []);
+                // Si el backend envía auditoría, la guardamos
+                setAuditoria(Array.isArray(data.auditoria) ? data.auditoria : []); 
             }
         } catch (err) { console.error(err); }
     };
 
-    const source = tab === 'medicos' ? medicos : pacientes;
+    // --- LÓGICA DE SELECCIÓN DE FUENTE Y FILTRADO ---
+    let source = [];
+    if (tab === 'medicos') source = medicos;
+    else if (tab === 'pacientes') source = pacientes;
+    else source = auditoria; // <--- Fuente para auditoría
 
     const filteredData = source.filter(item => {
         const term = searchTerm.toLowerCase();
+        
+        // Lógica de filtrado específica para Auditoría
+        if (tab === 'auditoria') {
+            const accion = (item.Accion || '').toLowerCase();
+            const email = (item.Email || '').toLowerCase();
+            const nivel = (item.Nivel || '').toLowerCase();
+            const servicio = (item.ServicioOrigen || '').toLowerCase();
+            return accion.includes(term) || email.includes(term) || nivel.includes(term) || servicio.includes(term);
+        }
+
+        // Lógica existente para Médicos y Pacientes
         const nombreCompleto = `${item.Nombre} ${item.Apellido}`.toLowerCase();
         const email = (item.Email || '').toLowerCase();
-        const cedula = (item.Identificacion || '').toLowerCase(); // Incluimos cédula
+        const cedula = (item.Identificacion || '').toLowerCase();
+        const licencia = item.NumeroLicencia ? item.NumeroLicencia.toLowerCase() : '';
 
-        return nombreCompleto.includes(term) || email.includes(term) || cedula.includes(term);
+        return nombreCompleto.includes(term) || email.includes(term) || cedula.includes(term) || licencia.includes(term);
     });
 
-    // --- ACCIONES CORREGIDAS CON EL NUEVO MODAL ---
+    // --- HELPERS VISUALES PARA AUDITORÍA ---
+    const formatDetalles = (jsonString) => {
+        try {
+            const obj = JSON.parse(jsonString);
+            // Si es un objeto complejo (edición con antes/después), lo mostramos estructurado
+            if (obj.cambios) {
+                return (
+                    <div style={{fontSize: '11px', lineHeight: '1.2'}}>
+                        <div style={{color:'#d9534f'}}><strong>Ant:</strong> {JSON.stringify(obj.cambios.anterior).slice(0, 40)}...</div>
+                        <div style={{color:'#28a745'}}><strong>Nue:</strong> {JSON.stringify(obj.cambios.nuevo).slice(0, 40)}...</div>
+                    </div>
+                );
+            }
+            // Si es mensaje simple o error
+            return obj.mensaje || obj.motivo || obj.error || JSON.stringify(obj);
+        } catch (e) {
+            return jsonString; // Si no es JSON, mostrar tal cual
+        }
+    };
+
+    const getNivelBadge = (nivel) => {
+        switch (nivel) {
+            case 'CRITICAL': return <span className="badge badge-danger">CRÍTICO</span>;
+            case 'SECURITY': return <span className="badge" style={{background:'#6610f2', color:'white'}}>SEGURIDAD</span>;
+            case 'WARNING': return <span className="badge" style={{background:'#ffc107', color:'black'}}>ALERTA</span>;
+            case 'INFO': return <span className="badge" style={{background:'#17a2b8', color:'white'}}>INFO</span>;
+            default: return <span className="badge">{nivel}</span>;
+        }
+    };
+
+    // --- ACCIONES (Tu código original intacto) ---
     const handleDeleteMedico = (id) => {
-        showAlert(
-            "PELIGRO",
-            "¿Eliminar médico? Esta acción es irreversible y borrará el acceso.",
-            "danger",
-            async () => {
+        showAlert("¿Eliminar Médico?", "Esta acción eliminará el acceso del doctor al sistema de forma permanente.", "danger", async () => {
                 const token = sessionStorage.getItem('token');
                 const res = await fetch(`${API_URL}/api/core/admin/medicos/${id}`, {
                     method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (res.status === 409) {
-                    // Si hay pacientes, abrimos el modal de reasignación
-                    setModalReassign({ isOpen: true });
+                    const data = await res.json();
+                    setModalReassign({ isOpen: true, pacientes: data.pacientes || [], doctorIdToDelete: id });
                 } else if (res.ok) {
                     const medico = medicos.find(m => m.MedicoID === id);
-                    // Borramos en Auth (SQL + Firebase)
-                    await fetch(`${API_URL}/api/auth/users/${medico.UsuarioID}`, {
-                        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    showAlert("¡Éxito!", "Médico eliminado permanentemente.", "success", cargarDatos);
+                    if (medico) await fetch(`${API_URL}/api/auth/users/${medico.UsuarioID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    showAlert("¡Éxito!", "Médico eliminado correctamente.", "success", cargarDatos);
                 }
-            },
-            true,
-            "Borrar todo"
-        );
+            }, true, "Sí, eliminar");
     };
 
     const handleDeletePaciente = (p) => {
-        showAlert(
-            "PELIGRO",
-            `Se borrará permanentemente a ${p.Nombre}. ¿Deseas continuar?`,
-            "danger",
-            async () => {
+        showAlert("⚠️ ADVERTENCIA CRÍTICA", `Estás a punto de eliminar a ${p.Nombre} ${p.Apellido}. \n\nEsto borrará permanentemente:\n- Su historial clínico.\n- Todas sus consultas.\n- Sus exámenes y recetas.\n\n¿Estás seguro de continuar?`, "danger", async () => {
                 const token = sessionStorage.getItem('token');
-                const res = await fetch(`${API_URL}/api/core/admin/pacientes/${p.PacienteID}`, {
-                    method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-                });
-
+                const res = await fetch(`${API_URL}/api/core/admin/pacientes/${p.PacienteID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.ok) {
-                    await fetch(`${API_URL}/api/auth/users/${p.UsuarioID}`, {
-                        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    showAlert("¡Éxito!", "Paciente eliminado correctamente.", "success", cargarDatos);
+                    await fetch(`${API_URL}/api/auth/users/${p.UsuarioID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                    showAlert("¡Éxito!", "Paciente y su historial eliminados.", "success", cargarDatos);
                 }
-            },
-            true,
-            "Borrar todo"
-        );
+            }, true, "Sí, borrar historial y usuario");
     };
 
     const handleUnlock = (usuarioId) => {
-        showAlert(
-            "Desbloquear cuenta",
-            "¿Confirmas que deseas restablecer los intentos de esta cuenta?",
-            "warning",
-            async () => {
+        showAlert("Desbloquear cuenta", "¿Confirmas que deseas restablecer los intentos de esta cuenta?", "warning", async () => {
                 const token = sessionStorage.getItem('token');
-                const res = await fetch(`${API_URL}/api/core/admin/users/${usuarioId}/unlock`, {
-                    method: 'PUT', headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const res = await fetch(`${API_URL}/api/core/admin/users/${usuarioId}/unlock`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
                 if (res.ok) showAlert("Desbloqueada", "El usuario ya puede intentar loguearse.", "success", cargarDatos);
-            },
-            true
-        );
+            }, true);
     };
 
     const handleSaveUser = async (e) => {
@@ -143,103 +156,57 @@ function DashboardAdmin() {
         const usuarioId = modalUser.data.UsuarioID;
 
         try {
-            // 1. Validar duplicados
             const resVal = await fetch(`${API_URL}/api/core/validate-registry`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    identificacion: data.identificacion,
-                    licencia: isMedico ? data.licencia : null,
-                    excludeUserId: usuarioId
-                })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identificacion: data.identificacion, licencia: isMedico ? data.licencia : null, excludeUserId: usuarioId })
             });
+            if (!resVal.ok) { const errVal = await resVal.json(); return showAlert("Error de validación", errVal.message, "danger"); }
 
-            if (!resVal.ok) {
-                const errVal = await resVal.json();
-                return showAlert("Error de validación", errVal.message, "danger");
-            }
-
-            // 2. Actualizar Email en Auth (Si ha cambiado)
             if (data.email !== modalUser.data.Email) {
-                const resAuth = await fetch(`${API_URL}/api/auth/users/${usuarioId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                await fetch(`${API_URL}/api/auth/users/${usuarioId}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ email: data.email })
                 });
-                if (!resAuth.ok) throw new Error("Error al actualizar el correo");
             }
 
-            // 3. Actualizar Perfil en Core
             const endpoint = isMedico ? `/api/core/admin/medicos/${id}` : `/api/core/pacientes/${id}`;
-
-            // --- CORRECCIÓN DE PAYLOAD ---
             const payload = isMedico ? {
-                nombre: data.nombre,
-                apellido: data.apellido,
-                identificacion: data.identificacion,
-                especialidad: data.especialidad,
-                licencia: data.licencia, // Cambiado de 'numeroLicencia' a 'licencia'
-                telefono: data.telefono
+                nombre: data.nombre, apellido: data.apellido, identificacion: data.identificacion, especialidad: data.especialidad, licencia: data.licencia, telefono: data.telefono
             } : {
-                nombre: data.nombre,
-                apellido: data.apellido,
-                identificacion: data.identificacion,
-                fechaNacimiento: data.fechaNacimiento,
-                telefono: data.telefono,
-                medicoId: modalUser.data.MedicoID // Se mantiene el médico que ya tenía
+                nombre: data.nombre, apellido: data.apellido, identificacion: data.identificacion, fechaNacimiento: data.fechaNacimiento, telefono: data.telefono, direccion: data.direccion, medicoId: data.medicoId
             };
 
             const res = await fetch(`${API_URL}${endpoint}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(payload)
+                method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload)
             });
 
             if (res.ok) {
                 setModalUser({ isOpen: false, type: '', data: null });
                 showAlert("¡Éxito!", "Los datos se han guardado correctamente.", "success", cargarDatos);
-            } else {
-                // Si el error es 500, intentamos ver qué dice el servidor
-                const errorText = await res.text();
-                console.error("Respuesta del servidor:", errorText);
-                showAlert("Error del servidor", "Hubo un problema al actualizar los datos en la base de datos.", "danger");
-            }
-
-        } catch (error) {
-            console.error("Error en handleSaveUser:", error);
-            showAlert("Error Crítico", "No se pudo conectar con el servidor.", "danger");
-        }
+            } else { showAlert("Error", "No se pudo actualizar el perfil.", "danger"); }
+        } catch (error) { showAlert("Error Crítico", "No se pudo conectar con el servidor.", "danger"); }
     };
 
     return (
         <div className="admin-layout">
-            {/* SIDEBAR MODERNO */}
             <aside className="admin-sidebar">
-                <div className="admin-brand">
-                    <h1 className="logo-text">APOLO</h1>
-                    <span className="brand-badge">ADMIN</span>
-                </div>
-
+                <div className="admin-brand"><h1 className="logo-text">APOLO</h1><span className="brand-badge">ADMIN</span></div>
                 <div className="admin-profile">
-                    <div className="avatar-circle">
-                        <i className="fas fa-user-shield"></i>
-                    </div>
-                    <div className="profile-info">
-                        <h3>Administrador</h3>
-                        <p>Gestión del Sistema</p>
-                    </div>
+                    <div className="avatar-circle"><i className="fas fa-user-shield"></i></div>
+                    <div className="profile-info"><h3>Administrador</h3><p>Gestión del Sistema</p></div>
                 </div>
-
                 <nav className="admin-nav">
-                    <button className={`nav-item ${tab === 'medicos' ? 'active' : ''}`} onClick={() => setTab('medicos')}>
+                    <button className={`nav-item ${tab === 'medicos' ? 'active' : ''}`} onClick={() => { setTab('medicos'); setSearchTerm(''); }}>
                         <i className="fas fa-user-md"></i> <span>Médicos</span>
                     </button>
-                    <button className={`nav-item ${tab === 'pacientes' ? 'active' : ''}`} onClick={() => setTab('pacientes')}>
+                    <button className={`nav-item ${tab === 'pacientes' ? 'active' : ''}`} onClick={() => { setTab('pacientes'); setSearchTerm(''); }}>
                         <i className="fas fa-user-injured"></i> <span>Pacientes</span>
                     </button>
+                    {/* --- NUEVO BOTÓN PARA AUDITORÍA --- */}
+                    <button className={`nav-item ${tab === 'auditoria' ? 'active' : ''}`} onClick={() => { setTab('auditoria'); setSearchTerm(''); }}>
+                        <i className="fas fa-list-alt"></i> <span>Auditoría</span>
+                    </button>
+                    
                     <div className="nav-spacer"></div>
                     <button className="nav-item logout" onClick={() => { sessionStorage.clear(); navigate('/'); }}>
                         <i className="fas fa-sign-out-alt"></i> <span>Cerrar Sesión</span>
@@ -247,21 +214,16 @@ function DashboardAdmin() {
                 </nav>
             </aside>
 
-            {/* CONTENIDO PRINCIPAL */}
             <main className="admin-main">
                 <header className="admin-header">
                     <div className="header-title">
-                        <h1>Panel de Gestión</h1>
-                        <p>{tab === 'medicos' ? 'Administración de personal médico' : 'Control de pacientes registrados'}</p>
+                        <h1>{tab === 'auditoria' ? 'Registro de Auditoría' : 'Panel de Gestión'}</h1>
+                        <p>{tab === 'auditoria' ? 'Monitoreo de seguridad y cambios en el sistema' : `Administración de ${tab}`}</p>
                     </div>
                     <div className="header-search">
                         <i className="fas fa-search"></i>
-                        <input
-                            type="text"
-                            placeholder={`Buscar ${tab}...`}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                        <input type="text" placeholder={tab === 'auditoria' ? "Buscar por acción, usuario o nivel..." : "Buscar por cédula, nombre..."} 
+                               value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
                 </header>
 
@@ -271,41 +233,81 @@ function DashboardAdmin() {
                             <table className="modern-table">
                                 <thead>
                                     <tr>
-                                        <th>Estado</th>
-                                        <th>Nombre Completo</th>
-                                        <th>Email</th>
-                                        <th>Acciones</th>
+                                        {/* --- HEADER DINÁMICO: SI ES AUDITORÍA MUESTRA OTRAS COLUMNAS --- */}
+                                        {tab === 'auditoria' ? (
+                                            <>
+                                                <th>Nivel</th>
+                                                <th>Fecha/Hora</th>
+                                                <th>Servicio</th>
+                                                <th>Usuario</th>
+                                                <th>Acción</th>
+                                                <th style={{width: '35%'}}>Detalles</th>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <th>Estado</th>
+                                                <th>Identificación</th>
+                                                <th>Nombre Completo</th>
+                                                <th>Email</th>
+                                                {tab === 'medicos' ? (
+                                                    <><th>Especialidad</th><th>Licencia</th><th>Teléfono</th></>
+                                                ) : (
+                                                    <><th>Médico Asignado</th><th>Dirección</th><th>Teléfono</th></>
+                                                )}
+                                                <th>Acciones</th>
+                                            </>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* MAPEAMOS LOS DATOS FILTRADOS */}
-                                    {filteredData.map(u => (
-                                        <tr key={tab === 'medicos' ? u.MedicoID : u.PacienteID}>
-                                            <td>
-                                                <span className={`badge ${u.Activo ? 'badge-success' : 'badge-danger'}`}
-                                                    onClick={!u.Activo ? () => handleUnlock(u.UsuarioID) : undefined}
-                                                    style={{ cursor: u.Activo ? 'default' : 'pointer' }}>
-                                                    {u.Activo ? 'Activo' : 'Bloqueado'}
-                                                </span>
-                                            </td>
-                                            <td className="col-name">{u.Nombre} {u.Apellido}</td>
-                                            <td className="col-email">{u.Email}</td>
-                                            <td className="col-actions">
-                                                <button className="action-btn edit" title="Editar" onClick={() => setModalUser({ isOpen: true, type: tab === 'medicos' ? 'medico' : 'paciente', data: u })}>
-                                                    <i className="fas fa-pen"></i>
-                                                </button>
-                                                <button className="action-btn delete" title="Eliminar" onClick={() => tab === 'medicos' ? handleDeleteMedico(u.MedicoID) : handleDeletePaciente(u)}>
-                                                    <i className="fas fa-trash-alt"></i>
-                                                </button>
-                                            </td>
+                                    {filteredData.map((item, index) => (
+                                        <tr key={tab === 'auditoria' ? item.LogID : (tab === 'medicos' ? item.MedicoID : item.PacienteID)}>
+                                            {/* --- BODY DINÁMICO --- */}
+                                            {tab === 'auditoria' ? (
+                                                <>
+                                                    <td>{getNivelBadge(item.Nivel)}</td>
+                                                    <td style={{fontSize:'12px'}}>{new Date(item.FechaHora).toLocaleString()}</td>
+                                                    <td style={{fontSize:'12px', fontWeight:'500'}}>{item.ServicioOrigen}</td>
+                                                    <td style={{fontSize:'13px'}}>{item.Email || <span style={{color:'#999'}}>Sistema/Anon</span>}</td>
+                                                    <td style={{fontWeight:'bold', color:'var(--primary)', fontSize:'13px'}}>{item.Accion}</td>
+                                                    <td style={{fontSize:'12px', color:'#555'}}>{formatDetalles(item.Detalles)}</td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td>
+                                                        <span className={`badge ${item.Activo ? 'badge-success' : 'badge-danger'}`}
+                                                            onClick={!item.Activo ? () => handleUnlock(item.UsuarioID) : undefined}
+                                                            style={{ cursor: item.Activo ? 'default' : 'pointer' }}
+                                                            title={!item.Activo ? "Clic para desbloquear" : ""}>
+                                                            {item.Activo ? 'Activo' : 'Bloqueado'}
+                                                        </span>
+                                                    </td>
+                                                    <td>{item.Identificacion}</td>
+                                                    <td className="col-name">{item.Nombre} {item.Apellido}</td>
+                                                    <td className="col-email">{item.Email}</td>
+                                                    {tab === 'medicos' ? (
+                                                        <><td>{item.Especialidad}</td><td>{item.NumeroLicencia}</td><td>{item.Telefono}</td></>
+                                                    ) : (
+                                                        <>
+                                                            <td style={{color: '#1877f2', fontWeight: 500}}>
+                                                                {item.NombreMedico ? `Dr. ${item.NombreMedico} ${item.ApellidoMedico}` : 'Sin Asignar'}
+                                                            </td>
+                                                            <td>{item.Direccion || '--'}</td>
+                                                            <td>{item.TelefonoContacto}</td>
+                                                        </>
+                                                    )}
+                                                    <td className="col-actions">
+                                                        <button className="action-btn edit" title="Editar" onClick={() => setModalUser({ isOpen: true, type: tab === 'medicos' ? 'medico' : 'paciente', data: item })}><i className="fas fa-pen"></i></button>
+                                                        <button className="action-btn delete" title="Eliminar" onClick={() => tab === 'medicos' ? handleDeleteMedico(item.MedicoID) : handleDeletePaciente(item)}><i className="fas fa-trash-alt"></i></button>
+                                                    </td>
+                                                </>
+                                            )}
                                         </tr>
                                     ))}
-
-                                    {/* MENSAJE SI NO HAY RESULTADOS (Igual que en el médico) */}
                                     {filteredData.length === 0 && (
                                         <tr>
-                                            <td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: '#65676b' }}>
-                                                No se encontraron {tab} que coincidan con "{searchTerm}"
+                                            <td colSpan={tab === 'auditoria' ? 6 : 8} style={{ textAlign: 'center', padding: '40px', color: '#65676b' }}>
+                                                No se encontraron resultados para "{searchTerm}"
                                             </td>
                                         </tr>
                                     )}
@@ -315,152 +317,84 @@ function DashboardAdmin() {
                     </div>
                 </section>
             </main>
-            {/* --- MODAL DE ALERTA / CONFIRMACIÓN PROFESIONAL --- */}
+
+            {/* MODALES SE MANTIENEN IGUALES */}
             {alertConfig.isOpen && (
-                <div className="modal-overlay" style={{ zIndex: 2000 }}>
+                <div className="modal-overlay" style={{ zIndex: 3000 }}>
                     <div className="modal-card notification-modal">
-                        {/* Icono dinámico */}
-                        <div className={`${alertConfig.type}-icon`}>
-                            {alertConfig.type === 'success' ? '✓' : alertConfig.type === 'danger' ? '✕' : ''}
-                        </div>
-
-                        {/* Título dinámico (Ej: PELIGRO en rojo) */}
-                        <h2 className={alertConfig.type === 'danger' ? 'text-danger' : ''}>
-                            {alertConfig.title}
-                        </h2>
-
-                        <p>{alertConfig.message}</p>
-
+                        <div className={`${alertConfig.type}-icon`}>{alertConfig.type === 'success' ? '✓' : alertConfig.type === 'danger' ? '✕' : '!'}</div>
+                        <h2 className={alertConfig.type === 'danger' ? 'text-danger' : ''}>{alertConfig.title}</h2>
+                        <p style={{whiteSpace: 'pre-line'}}>{alertConfig.message}</p>
                         <div className="modal-actions-inline">
-                            {/* Botón Principal: SIEMPRE AZUL (como "Aceptar") */}
-                            {/* Busca esta parte en el modal de alerta de DashboardAdmin.jsx */}
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                    if (alertConfig.onConfirm) alertConfig.onConfirm();
-                                    closeAlert();
-                                }}
-                            >
-                                {alertConfig.confirmText}
-                            </button>
-
-                            {/* Botón Cancelar: SIEMPRE GRIS */}
-                            {alertConfig.showCancel && (
-                                <button className="btn btn-danger" onClick={closeAlert}
-                                >
-                                    Cancelar
-                                </button>
-                            )}
+                            <button className="btn btn-primary" onClick={() => { if (alertConfig.onConfirm) alertConfig.onConfirm(); closeAlert(); }}>{alertConfig.confirmText}</button>
+                            {alertConfig.showCancel && <button className="btn btn-danger" onClick={closeAlert}>Cancelar</button>}
                         </div>
                     </div>
                 </div>
             )}
-            {/* MODAL EDICIÓN USUARIO */}
+
             {modalUser.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-card">
-
-                        {/* BOTÓN X PEQUEÑO EN LA ESQUINA SUPERIOR DERECHA */}
-                        <button className="cerrar"
-                            onClick={() => setModalUser({ isOpen: false, type: '', data: null })}
-                            title="Cerrar"
-                        >
-                            <i className="fas fa-times"></i> {/* Usamos icono para que se vea más fino */}
-                        </button>
-
-                        {/* TÍTULO EN UNA SOLA LÍNEA Y EN AZUL */}
-                        <div>
-                            <h2 style={{
-                                margin: 0,
-                                fontSize: '20px',
-                                color: '#1877f2',
-                                fontWeight: '700',
-                                whiteSpace: 'nowrap' // Evita que se divida en dos líneas
-                            }}>
-                                Editar {modalUser.type === 'medico' ? 'Médico' : 'Paciente'}
-                            </h2>
-                        </div>
-                        <div className="separator"></div>
-
-                        <form onSubmit={handleSaveUser} noValidate>
-                            {/* Email - Campo crítico sincronizado con Firebase */}
-                            <div className="field-container">
-                                <label className="field-label">Email de acceso</label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    defaultValue={modalUser.data.Email}
-                                    className="small-input"
-                                    required
-                                />
-                            </div>
-
-                            {/* Nombre y Apellido en una fila */}
+                        <button className="cerrar" onClick={() => setModalUser({ isOpen: false, type: '', data: null })}><i className="fas fa-times"></i></button>
+                        <h2 style={{ margin: 0, color: '#1877f2', marginBottom: '15px' }}>Editar {modalUser.type === 'medico' ? 'Médico' : 'Paciente'}</h2>
+                        <form onSubmit={handleSaveUser}>
+                            <div className="field-container"><label className="field-label">Email de acceso</label><input type="email" name="email" defaultValue={modalUser.data.Email} className="small-input" required /></div>
                             <div className="form-row">
-                                <div className="field-container">
-                                    <label className="field-label">Nombre</label>
-                                    <input name="nombre" className="small-input" required defaultValue={modalUser.data.Nombre} />
-                                </div>
-                                <div className="field-container">
-                                    <label className="field-label">Apellido</label>
-                                    <input name="apellido" className="small-input" required defaultValue={modalUser.data.Apellido} />
-                                </div>
+                                <div className="field-container"><label className="field-label">Nombre</label><input name="nombre" className="small-input" required defaultValue={modalUser.data.Nombre} /></div>
+                                <div className="field-container"><label className="field-label">Apellido</label><input name="apellido" className="small-input" required defaultValue={modalUser.data.Apellido} /></div>
                             </div>
-
-                            {/* Identificación */}
-                            <div className="field-container">
-                                <label className="field-label">Identificación (Cédula)</label>
-                                <input name="identificacion" className="small-input" required defaultValue={modalUser.data.Identificacion} maxLength="10" />
-                            </div>
-
-                            {/* Campos Condicionales según el Tipo */}
+                            <div className="field-container"><label className="field-label">Identificación (Cédula)</label><input name="identificacion" className="small-input" required defaultValue={modalUser.data.Identificacion} maxLength="10" /></div>
                             {modalUser.type === 'medico' ? (
                                 <div className="medico-extra-box">
-                                    <div className="field-container">
-                                        <label className="field-label">Especialidad Médica</label>
-                                        <input name="especialidad" className="small-input" defaultValue={modalUser.data.Especialidad} />
-                                    </div>
-                                    <div className="field-container" style={{ marginBottom: 0 }}>
-                                        <label className="field-label">Número de Licencia</label>
-                                        <input name="licencia" className="small-input" defaultValue={modalUser.data.NumeroLicencia} maxLength="10" />
-                                    </div>
+                                    <div className="field-container"><label className="field-label">Especialidad</label><input name="especialidad" className="small-input" defaultValue={modalUser.data.Especialidad} /></div>
+                                    <div className="field-container"><label className="field-label">Licencia</label><input name="licencia" className="small-input" defaultValue={modalUser.data.NumeroLicencia} /></div>
+                                    <div className="field-container"><label className="field-label">Teléfono</label><input name="telefono" className="small-input" defaultValue={modalUser.data.Telefono} /></div>
                                 </div>
                             ) : (
-                                <div className="form-row">
-                                    <div className="field-container">
-                                        <label className="field-label">Fecha Nacimiento</label>
-                                        <input
-                                            type="date"
-                                            name="fechaNacimiento"
-                                            className="small-input"
-                                            defaultValue={modalUser.data.FechaNacimiento?.split('T')[0]}
-                                        />
+                                <>
+                                    <div className="form-row">
+                                        <div className="field-container"><label className="field-label">Fecha Nacimiento</label><input type="date" name="fechaNacimiento" className="small-input" defaultValue={modalUser.data.FechaNacimiento?.split('T')[0]} /></div>
+                                        <div className="field-container"><label className="field-label">Teléfono</label><input name="telefono" className="small-input" defaultValue={modalUser.data.TelefonoContacto} /></div>
                                     </div>
-                                    <div className="field-container">
-                                        <label className="field-label">Teléfono Celular</label>
-                                        <input
-                                            name="telefono" // <--- Asegúrate de que tenga este name
-                                            className="small-input"
-                                            defaultValue={modalUser.data.TelefonoContacto}
-                                            maxLength="10"
-                                        />
+                                    <div className="field-container"><label className="field-label">Dirección</label><input name="direccion" className="small-input" defaultValue={modalUser.data.Direccion} /></div>
+                                    <div className="field-container" style={{background: '#f0f7ff', padding: '10px', borderRadius: '5px'}}>
+                                        <label className="field-label" style={{color: '#1877f2'}}>Médico Asignado</label>
+                                        <select name="medicoId" className="small-input" defaultValue={modalUser.data.MedicoID}>
+                                            {medicos.map(m => <option key={m.MedicoID} value={m.MedicoID}>Dr. {m.Nombre} {m.Apellido} ({m.Especialidad})</option>)}
+                                        </select>
                                     </div>
-                                </div>
+                                </>
                             )}
-
-                            {/* Acciones del Modal */}
-                            <div className="modal-actions-inline">
-                                <button type="submit" className="btn btn-primary">
-                                    Guardar cambios
-                                </button>
-                                <button
-                                    type="button" className="btn btn-danger"
-                                    onClick={() => setModalUser({ isOpen: false })}
-                                >
-                                    Cancelar
-                                </button>
+                            <div className="modal-actions-inline" style={{marginTop: '20px'}}>
+                                <button type="submit" className="btn btn-primary">Guardar cambios</button>
+                                <button type="button" className="btn btn-danger" onClick={() => setModalUser({ isOpen: false })}>Cancelar</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {modalReassign.isOpen && (
+                <div className="modal-overlay" style={{ zIndex: 2100 }}>
+                    <div className="modal-card">
+                        <button className="cerrar" onClick={() => setModalReassign({ isOpen: false })}>×</button>
+                        <h2 style={{color: '#dc3545'}}>Acción Requerida</h2>
+                        <p>No se puede eliminar a este médico porque tiene los siguientes pacientes asignados:</p>
+                        <div style={{maxHeight: '200px', overflowY: 'auto', background: '#f8f9fa', padding: '10px', margin: '10px 0', borderRadius: '5px'}}>
+                            <ul style={{listStyle: 'none', padding: 0}}>
+                                {modalReassign.pacientes.map(p => (
+                                    <li key={p.PacienteID} style={{borderBottom: '1px solid #eee', padding: '5px 0'}}><strong>{p.Nombre} {p.Apellido}</strong> (ID: {p.Identificacion})</li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div style={{background: '#fff3cd', padding: '10px', fontSize: '14px', color: '#856404', borderRadius: '4px'}}>
+                            <i className="fas fa-exclamation-triangle"></i> Debes ir a la pestaña <strong>Pacientes</strong> y reasignarlos a otro doctor manualmente antes de poder eliminar a este médico.
+                        </div>
+                        <div className="modal-actions-inline" style={{marginTop: '15px'}}>
+                            <button className="btn btn-primary" onClick={() => { setModalReassign({ isOpen: false }); setTab('pacientes'); }}>Ir a Pacientes</button>
+                            <button className="btn btn-danger" onClick={() => setModalReassign({ isOpen: false })}>Cerrar</button>
+                        </div>
                     </div>
                 </div>
             )}

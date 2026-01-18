@@ -1,20 +1,15 @@
+// clinical-service/src/controllers/clinicalController.js
 const clinicalRepo = require('../repositories/clinicalRepository');
+const { registrarLog } = require('../utils/logger');
 
-// Crear Consulta
+// --- CONSULTAS ---
+
 const registerConsulta = async (req, res) => {
     try {
-        // req.body debe traer: pacienteId, motivo, sintomas, diagnostico, tratamiento
-        // El medicoId lo sacamos del token para seguridad (si quien registra es un médico)
         const medicoId = req.user.rol === 1 ? req.user.id : req.body.medicoId; 
-
-        // NOTA: El ID del token es UsuarioID. 
-        // En un sistema real estricto, deberíamos buscar el MedicoID asociado a ese UsuarioID.
-        // Para simplificar este MVP académico, asumiremos que el Frontend envía el MedicoID correcto 
-        // o que usamos el ID de usuario como referencia si así lo decidimos en la BD.
-        // *Corrección:* Tu BD Clinical guarda 'MedicoID'.
-        // Vamos a confiar en el ID que envía el frontend por ahora para no complicar la consulta entre microservicios.
         
-        await clinicalRepo.createConsulta({ ...req.body });
+        await clinicalRepo.createConsulta({ ...req.body, medicoId });
+
         res.status(201).json({ message: 'Consulta registrada correctamente' });
     } catch (error) {
         console.error(error);
@@ -22,19 +17,75 @@ const registerConsulta = async (req, res) => {
     }
 };
 
-
 const updateConsulta = async (req, res) => {
+    const { id } = req.params;
+    const editorId = req.user.id; // Médico que edita
+    
     try {
-        await clinicalRepo.updateConsulta(req.params.id, req.body);
+        // 1. OBTENER DATOS ANTES DE CAMBIAR (SNAPSHOT)
+        const datosAnteriores = await clinicalRepo.getConsultaById(id);
+        
+        if (!datosAnteriores) return res.status(404).json({ message: 'Consulta no encontrada' });
+
+        // 2. EJECUTAR ACTUALIZACIÓN
+        await clinicalRepo.updateConsulta(id, req.body);
+
+        // 3. REGISTRAR AUDITORÍA (ANTES vs DESPUÉS)
+        await registrarLog({
+            nivel: 'WARNING', // Warning porque alterar historia clínica es delicado
+            servicio: 'ClinicalService',
+            usuarioId: editorId,
+            rolId: req.user.rol,
+            ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            accion: 'Editar_Consulta',
+            detalles: { 
+                idConsulta: id,
+                cambios: {
+                    anterior: datosAnteriores,
+                    nuevo: req.body 
+                }
+            }
+        });
+
         res.json({ message: 'Consulta actualizada' });
-    } catch (e) { res.status(500).json({ message: 'Error actualizando' }); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ message: 'Error actualizando consulta' }); 
+    }
 };
 
 const deleteConsulta = async (req, res) => {
+    const { id } = req.params;
+    const editorId = req.user.id;
+
     try {
-        await clinicalRepo.deleteConsulta(req.params.id);
+        // 1. OBTENER DATOS ANTES DE BORRAR
+        const datosEliminados = await clinicalRepo.getConsultaById(id);
+
+        if (!datosEliminados) return res.status(404).json({ message: 'Consulta no encontrada' });
+
+        // 2. ELIMINAR
+        await clinicalRepo.deleteConsulta(id);
+
+        // 3. REGISTRAR AUDITORÍA (QUÉ SE BORRÓ)
+        await registrarLog({
+            nivel: 'CRITICAL',
+            servicio: 'ClinicalService',
+            usuarioId: editorId,
+            rolId: req.user.rol,
+            ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            accion: 'Eliminar_Consulta',
+            detalles: { 
+                mensaje: 'Se eliminó un registro médico completo',
+                datosRecuperables: datosEliminados 
+            }
+        });
+
         res.json({ message: 'Consulta eliminada' });
-    } catch (e) { res.status(500).json({ message: 'Error eliminando' }); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ message: 'Error eliminando consulta' }); 
+    }
 };
 
 // Obtener Historial (Consultas)
@@ -48,7 +99,7 @@ const getHistoria = async (req, res) => {
     }
 };
 
-
+// --- EXÁMENES ---
 
 // Crear Examen
 const registerExamen = async (req, res) => {
@@ -73,20 +124,76 @@ const getExamenes = async (req, res) => {
 };
 
 const updateExamen = async (req, res) => {
+    const { id } = req.params;
+    const editorId = req.user.id;
+
     try {
-        await clinicalRepo.updateExamen(req.params.id, req.body);
+        // 1. SNAPSHOT
+        const datosAnteriores = await clinicalRepo.getExamenById(id);
+        
+        if (!datosAnteriores) return res.status(404).json({ message: 'Examen no encontrado' });
+
+        // 2. UPDATE
+        await clinicalRepo.updateExamen(id, req.body);
+
+        // 3. LOG
+        await registrarLog({
+            nivel: 'WARNING',
+            servicio: 'ClinicalService',
+            usuarioId: editorId,
+            rolId: req.user.rol,
+            ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            accion: 'Editar_Examen',
+            detalles: { 
+                idExamen: id,
+                cambios: {
+                    anterior: datosAnteriores,
+                    nuevo: req.body 
+                }
+            }
+        });
+
         res.json({ message: 'Examen actualizado' });
-    } catch (e) { res.status(500).json({ message: 'Error actualizando' }); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ message: 'Error actualizando examen' }); 
+    }
 };
 
 const deleteExamen = async (req, res) => {
+    const { id } = req.params;
+    const editorId = req.user.id;
+
     try {
-        await clinicalRepo.deleteExamen(req.params.id);
+        // 1. SNAPSHOT
+        const datosEliminados = await clinicalRepo.getExamenById(id);
+
+        if (!datosEliminados) return res.status(404).json({ message: 'Examen no encontrado' });
+
+        // 2. DELETE
+        await clinicalRepo.deleteExamen(id);
+
+        // 3. LOG
+        await registrarLog({
+            nivel: 'CRITICAL',
+            servicio: 'ClinicalService',
+            usuarioId: editorId,
+            rolId: req.user.rol,
+            ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            accion: 'Eliminar_Examen',
+            detalles: { 
+                mensaje: 'Se eliminó un examen del historial',
+                datosRecuperables: datosEliminados 
+            }
+        });
+
         res.json({ message: 'Examen eliminado' });
-    } catch (e) { res.status(500).json({ message: 'Error eliminando' }); }
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ message: 'Error eliminando examen' }); 
+    }
 };
 
-// No olvides exportarlos
 module.exports = { 
     registerConsulta, getHistoria, updateConsulta, deleteConsulta,
     registerExamen, getExamenes, updateExamen, deleteExamen 

@@ -104,4 +104,20 @@ const getExamenesByPaciente = async (pacienteId) => {
     return result.recordset;
 };
 
-module.exports = { createConsulta, updateConsulta, deleteConsulta, getConsultasByPaciente, createExamen, updateExamen, deleteExamen, getExamenesByPaciente };
+const getConsultaById = async (id) => {
+    const pool = await getConnection();
+    const result = await pool.request()
+        .input('ID', sql.Int, id)
+        .query('SELECT * FROM Consultas WHERE ConsultaID = @ID');
+    return result.recordset[0];
+};
+
+const getExamenById = async (id) => {
+    const pool = await getConnection();
+    const result = await pool.request()
+        .input('ID', sql.Int, id)
+        .query('SELECT * FROM Examenes WHERE ExamenID = @ID');
+    return result.recordset[0];
+};
+
+module.exports = { createConsulta, updateConsulta, deleteConsulta, getConsultasByPaciente, createExamen, updateExamen, deleteExamen, getExamenesByPaciente, getConsultaById, getExamenById };

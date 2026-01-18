@@ -26,8 +26,3 @@ CREATE TABLE Examenes (
     FechaSubida DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Examenes_Consultas FOREIGN KEY (ConsultaID) REFERENCES Consultas(ConsultaID)
 );
-
--- Datos semilla
-INSERT INTO Consultas (PacienteID, MedicoID, MotivoConsulta, Diagnostico, Tratamiento)
-VALUES (1, 1, 'Dolor en el pecho', 'Angina estable', 'Reposo y medicación X cada 8 horas');
-GO

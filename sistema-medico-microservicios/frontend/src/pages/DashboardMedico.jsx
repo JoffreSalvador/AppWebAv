@@ -1,3 +1,4 @@
+// frontend/src/pages/DashboardMedico.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
@@ -175,7 +176,7 @@ function DashboardMedico() {
             diagnostico: form.diagnostico.value,
             tratamiento: form.tratamiento.value,
             sintomas: form.sintomas.value,
-            notas: form.notas.value // Asegúrate de que exista en el form
+            notas: form.notas.value 
         };
         const token = sessionStorage.getItem('token');
         const isEdit = modalConsulta.data !== null;
@@ -376,13 +377,11 @@ function DashboardMedico() {
                                 </div>
                             </div>
 
-                            {/* Listado de Consultas */}
                             {historia.consultas.map(c => (
                                 <div key={c.ConsultaID} className="content-card" style={{ padding: '20px', marginBottom: '15px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <span className="badge badge-success">{new Date(c.FechaConsulta).toLocaleDateString()}</span>
 
-                                        {/* ACCIONES DE LA CONSULTA */}
                                         <div className="col-actions">
                                             <button className="action-btn edit" title="Adjuntar Examen" onClick={() => setModalExamen({ isOpen: true, data: null, consultaId: c.ConsultaID })}>
                                                 <i className="fas fa-file-medical"></i>
@@ -418,38 +417,38 @@ function DashboardMedico() {
                                             <div key={e.ExamenID} style={{
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
-                                                alignItems: 'center', // Centra verticalmente todo el renglón
+                                                alignItems: 'center', 
                                                 padding: '8px 0',
                                                 borderBottom: '1px solid #eee'
                                             }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                     <span style={{ fontWeight: '700', fontSize: '14px', lineHeight: '1.2' }}>{e.TipoExamen}</span>
                                                     <span style={{ fontSize: '12px', color: '#888' }}>({new Date(e.FechaRealizacion).toLocaleDateString()})</span>
+                                                    
+                                                    {/* --- CORRECCIÓN 1: MOSTRAR OBSERVACIONES --- */}
+                                                    {e.ObservacionesResultados && (
+                                                        <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0 0', fontStyle: 'italic', background: '#fff', padding: '5px', borderLeft: '3px solid #ccc' }}>
+                                                            {e.ObservacionesResultados}
+                                                        </p>
+                                                    )}
                                                 </div>
-
+                                                
                                                 {/* CONTENEDOR DE ACCIONES */}
                                                 <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     {e.RutaArchivo && e.RutaArchivo !== '#' && (
-                                                        <a
-                                                            href={e.RutaArchivo}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            className="action-btn edit"
-                                                            title="Ver archivo"
-                                                            style={{
-                                                                textDecoration: 'none',
-                                                                display: 'flex',      // Asegura que el icono dentro se centre
-                                                                alignItems: 'center',
-                                                                justifyContent: 'center',
-                                                                lineHeight: '0'       // Evita que el texto fantasma suba el icono
-                                                            }}
-                                                        >
+                                                        <a href={e.RutaArchivo} target="_blank" rel="noreferrer" className="action-btn edit" title="Ver archivo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0' }}>
                                                             <i className="fas fa-eye" style={{ fontSize: '16px' }}></i>
                                                         </a>
                                                     )}
-                                                    <button
-                                                        className="action-btn delete"
-                                                        title="Eliminar examen"
+                                                    
+                                                    {/* --- CORRECCIÓN 2: BOTÓN EDITAR EXAMEN --- */}
+                                                    <button className="action-btn edit" title="Editar examen"
+                                                        onClick={() => setModalExamen({ isOpen: true, data: e, consultaId: c.ConsultaID })}
+                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0' }}>
+                                                        <i className="fas fa-pen" style={{ fontSize: '16px' }}></i>
+                                                    </button>
+                                                    
+                                                    <button className="action-btn delete" title="Eliminar examen"
                                                         onClick={() => {
                                                             showAlert("Eliminar Examen", "¿Borrar este examen?", "danger", async () => {
                                                                 const token = sessionStorage.getItem('token');
@@ -457,13 +456,7 @@ function DashboardMedico() {
                                                                 recargarHistoria(selectedPaciente.UsuarioID);
                                                             }, true);
                                                         }}
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            lineHeight: '0'
-                                                        }}
-                                                    >
+                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0' }}>
                                                         <i className="fas fa-trash-alt" style={{ fontSize: '16px' }}></i>
                                                     </button>
                                                 </div>
@@ -513,7 +506,7 @@ function DashboardMedico() {
                     )}
                 </section>
             </main>
-            {/* MODAL CONSULTA (Corregido con Notas Adicionales) */}
+
             {modalConsulta.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-card">
@@ -543,6 +536,7 @@ function DashboardMedico() {
                     </div>
                 </div>
             )}
+            
             {modalUser.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-card">
@@ -569,7 +563,18 @@ function DashboardMedico() {
                                 <div className="field-container"><label className="field-label">Sangre</label><input name="tipoSangre" className="small-input" defaultValue={modalUser.data?.TipoSangre} /></div>
                             </div>
                             <div className="field-container"><label className="field-label">Dirección</label><input name="direccion" className="small-input" defaultValue={modalUser.data?.Direccion} /></div>
-                            <div className="field-container"><label className="field-label">Alergias</label><textarea name="alergias" className="small-input" defaultValue={modalUser.data?.Alergias} rows="2"></textarea></div>
+                            
+                            {/* --- CORRECCIÓN 3: MENSAJE DE AYUDA EN ALERGIAS --- */}
+                            <div className="field-container">
+                                <label className="field-label">
+                                    Alergias 
+                                    <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal', marginLeft: '5px' }}>
+                                        (Separar con comas: ej. Penicilina, Polvo)
+                                    </span>
+                                </label>
+                                <textarea name="alergias" className="small-input" defaultValue={modalUser.data?.Alergias} rows="2"></textarea>
+                            </div>
+                            
                             <div className="modal-actions-inline">
                                 <button type="submit" className="btn btn-primary">Guardar cambios</button>
                                 <button type="button" className="btn btn-danger" onClick={() => setModalUser({ isOpen: false })}>Cancelar</button>

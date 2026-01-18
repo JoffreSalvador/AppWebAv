@@ -1,3 +1,4 @@
+// auth-service/src/repositories/userRepository.js
 const { getConnection, sql } = require('../config/db');
 
 const createUser = async (email, passwordHash, rolId) => {

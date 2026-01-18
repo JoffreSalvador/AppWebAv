@@ -1,4 +1,4 @@
-// authController.js
+// auth-service/src/controllers/authController.js
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -168,6 +168,16 @@ const login = async (req, res) => {
                     .input('Nuevos', sql.Int, nuevosIntentos)
                     .input('ID', sql.Int, userResult.UsuarioID)
                     .query('UPDATE Usuarios SET IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
+                
+                await registrarLog({
+                    nivel: 'WARNING', 
+                    servicio: 'AuthService', 
+                    usuarioId: userResult.UsuarioID, 
+                    rolId: userResult.RolID, 
+                    ip, 
+                    accion: 'Login_Fallido',
+                    detalles: { motivo: 'Contraseña incorrecta', intento: nuevosIntentos, maximos: 3 }
+                });
 
                 return res.status(401).json({ message: `Credenciales inválidas. Intento ${nuevosIntentos} de 3.` });
             }
@@ -251,6 +261,16 @@ const verify2FA = async (req, res) => {
         const payload = { id: dbUser.UsuarioID, rol: dbUser.RolID, email: dbUser.Email };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
 
+        await registrarLog({
+            nivel: 'INFO', 
+            servicio: 'AuthService', 
+            usuarioId: dbUser.UsuarioID, 
+            rolId: dbUser.RolID, 
+            ip, 
+            accion: 'Login_Exitoso',
+            detalles: { metodo: '2FA_Verificado' }
+        });
+        
         res.json({
             message: 'Autenticación completada',
             token: token,

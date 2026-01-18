@@ -1,4 +1,4 @@
-// adminRepository.js
+// core-service/src/repositories/adminRepository.js
 const { getConnection, sql } = require('../config/db');
 
 const getAllMedicos = async () => {
@@ -68,7 +68,64 @@ const deleteMedico = async (id) => {
 
 const deletePaciente = async (id) => {
     const pool = await getConnection();
-    await pool.request().input('ID', sql.Int, id).query('DELETE FROM Pacientes WHERE PacienteID = @ID');
+    
+    // 1. Obtenemos el UsuarioID antes de borrar el perfil, 
+    // lo necesitamos para borrar también sus mensajes de chat.
+    const userRes = await pool.request()
+        .input('ID', sql.Int, id)
+        .query('SELECT UsuarioID FROM Pacientes WHERE PacienteID = @ID');
+        
+    // Si el paciente ya no existe, salimos
+    if (userRes.recordset.length === 0) return;
+    
+    const usuarioId = userRes.recordset[0].UsuarioID;
+
+    // 2. Iniciamos una TRANSACCIÓN. 
+    // Esto asegura que se borre TODO o NADA. Si falla algo, no deja datos a medias.
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+        await transaction.begin();
+        const request = new sql.Request(transaction);
+        
+        request.input('PacienteID', sql.Int, id);
+        request.input('UsuarioID', sql.Int, usuarioId);
+
+        // --- PASO A: Limpiar DB_Clinical ---
+        // Primero Exámenes (por si tienen FK a Consultas)
+        await request.query(`
+            DELETE FROM DB_Clinical.dbo.Examenes 
+            WHERE PacienteID = @PacienteID
+        `);
+
+        // Luego Consultas (Diagnósticos, Tratamientos)
+        await request.query(`
+            DELETE FROM DB_Clinical.dbo.Consultas 
+            WHERE PacienteID = @PacienteID
+        `);
+
+        // --- PASO B: Limpiar DB_Chat ---
+        // Borramos mensajes enviados POR él o PARA él
+        await request.query(`
+            DELETE FROM DB_Chat.dbo.Mensajes 
+            WHERE UsuarioID = @UsuarioID OR ReceptorID = @UsuarioID
+        `);
+
+        // --- PASO C: Limpiar DB_Core ---
+        // Finalmente borramos el perfil del paciente
+        await request.query(`
+            DELETE FROM Pacientes 
+            WHERE PacienteID = @PacienteID
+        `);
+
+        // Si todo salió bien, aplicamos los cambios
+        await transaction.commit();
+
+    } catch (error) {
+        // Si algo falló, deshacemos todo
+        await transaction.rollback();
+        throw error; // Lanzamos el error para que el controller lo detecte
+    }
 };
 
 const unlockUser = async (usuarioId) => {
@@ -82,4 +139,26 @@ const unlockUser = async (usuarioId) => {
         `);
 };
 
-module.exports = { getAllMedicos, getAllPacientes, checkLicense, updateMedico, getPatientsByMedico, deleteMedico, deletePaciente, unlockUser };
+const getAuditLogs = async () => {
+    const pool = await getConnection();
+    // Traemos los últimos 100 eventos para no saturar la vista
+    // Hacemos LEFT JOIN con Usuarios para ver el Email en vez de solo el ID
+    const result = await pool.request().query(`
+        SELECT TOP 100 
+            L.LogID,
+            L.FechaHora,
+            L.ServicioOrigen,
+            L.Nivel,
+            L.IPOrigen,
+            L.Accion,
+            L.Detalles,
+            L.UsuarioID,
+            U.Email
+        FROM DB_Logs.dbo.Auditoria L
+        LEFT JOIN DB_Auth.dbo.Usuarios U ON L.UsuarioID = U.UsuarioID
+        ORDER BY L.FechaHora DESC
+    `);
+    return result.recordset;
+};
+
+module.exports = { getAllMedicos, getAllPacientes, checkLicense, updateMedico, getPatientsByMedico, deleteMedico, deletePaciente, unlockUser, getAuditLogs };

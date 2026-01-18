@@ -10,7 +10,7 @@ const createMedico = async (data) => {
         .input('Identificacion', sql.NVarChar, data.identificacion)
         .input('Especialidad', sql.NVarChar, data.especialidad)
         .input('NumeroLicencia', sql.NVarChar, data.licencia)
-        .input('TelefonoContacto', sql.NVarChar, data.telefonoContacto)
+        .input('Telefono', sql.NVarChar, data.telefono)
         .query(`
             INSERT INTO Medicos (UsuarioID, Nombre, Apellido, Identificacion, Especialidad, NumeroLicencia, Telefono)
             VALUES (@UsuarioID, @Nombre, @Apellido, @Identificacion, @Especialidad, @NumeroLicencia, @Telefono)
