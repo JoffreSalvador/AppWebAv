@@ -26,3 +26,10 @@ CREATE TABLE Examenes (
     FechaSubida DATETIME DEFAULT GETDATE(),
     CONSTRAINT FK_Examenes_Consultas FOREIGN KEY (ConsultaID) REFERENCES Consultas(ConsultaID)
 );
+
+USE DB_Clinical;
+GO
+
+-- Cambiamos el límite de MotivoConsulta para soportar el crecimiento del texto cifrado
+ALTER TABLE Consultas ALTER COLUMN MotivoConsulta NVARCHAR(MAX) NOT NULL;
+GO
