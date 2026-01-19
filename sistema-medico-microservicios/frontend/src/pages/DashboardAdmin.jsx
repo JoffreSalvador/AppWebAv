@@ -543,7 +543,7 @@ function DashboardAdmin() {
                     <div className="modal-card notification-modal">
                         <div className="warning-icon">🕒</div>
                         <h2 className="text-warning">Sesión Expirada</h2>
-                        <p>Tu sesión ha finalizado por inactividad (5 minutos) para proteger la información del paciente.</p>
+                        <p>Tu sesión ha finalizado por inactividad para proteger la información del paciente.</p>
                         <button className="btn btn-primary" onClick={handleFinalizarExpiracion}>
                             Regresar al Inicio
                         </button>

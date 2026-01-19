@@ -774,14 +774,14 @@ function DashboardMedico() {
                             </div>
                             <div className="field-container">
                                 <label className="field-label">Motivo</label>
-                                <input name="motivo" className="small-input" defaultValue={modalConsulta.data?.MotivoConsulta} required />
+                                <input name="motivo" className="small-input" defaultValue={modalConsulta.data?.MotivoConsulta} required maxLength="200" />
                             </div>
                             <div className="form-row">
-                                <div className="field-container"><label className="field-label">Diagnóstico</label><input name="diagnostico" className="small-input" defaultValue={modalConsulta.data?.Diagnostico} required /></div>
-                                <div className="field-container"><label className="field-label">Tratamiento</label><input name="tratamiento" className="small-input" defaultValue={modalConsulta.data?.Tratamiento} required /></div>
+                                <div className="field-container"><label className="field-label">Diagnóstico</label><input name="diagnostico" className="small-input" defaultValue={modalConsulta.data?.Diagnostico} required maxLength="200" /></div>
+                                <div className="field-container"><label className="field-label">Tratamiento</label><input name="tratamiento" className="small-input" defaultValue={modalConsulta.data?.Tratamiento} required maxLength="200" /></div>
                             </div>
-                            <div className="field-container"><label className="field-label">Síntomas</label><textarea name="sintomas" className="small-input" defaultValue={modalConsulta.data?.Sintomas} rows="2"></textarea></div>
-                            <div className="field-container"><label className="field-label">Notas Adicionales</label><textarea name="notas" className="small-input" defaultValue={modalConsulta.data?.NotasAdicionales} rows="2"></textarea></div>
+                            <div className="field-container"><label className="field-label">Síntomas</label><textarea name="sintomas" className="small-input" defaultValue={modalConsulta.data?.Sintomas} rows="2" maxLength="200"></textarea></div>
+                            <div className="field-container"><label className="field-label">Notas Adicionales</label><textarea name="notas" className="small-input" defaultValue={modalConsulta.data?.NotasAdicionales} rows="2" maxLength="200"></textarea></div>
                             <div className="modal-actions-inline">
                                 <button type="submit" className="btn btn-primary">Guardar</button>
                                 <button type="button" className="btn btn-danger" onClick={() => setModalConsulta({ isOpen: false })}>Cerrar</button>
@@ -814,7 +814,20 @@ function DashboardMedico() {
                             </div>
                             <div className="form-row">
                                 <div className="field-container"><label className="field-label">Teléfono</label><input name="telefono" className="small-input" defaultValue={modalUser.data?.TelefonoContacto} /></div>
-                                <div className="field-container"><label className="field-label">Sangre</label><input name="tipoSangre" className="small-input" defaultValue={modalUser.data?.TipoSangre} /></div>
+                                <div className="field-container">
+                                    <label className="field-label">Sangre</label>
+                                    <select name="tipoSangre" className="small-input" defaultValue={modalUser.data?.TipoSangre}>
+                                        <option value="">Seleccione...</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="field-container"><label className="field-label">Dirección</label><input name="direccion" className="small-input" defaultValue={modalUser.data?.Direccion} /></div>
 
@@ -929,7 +942,7 @@ function DashboardMedico() {
                     <div className="modal-card notification-modal">
                         <div className="warning-icon">🕒</div>
                         <h2 className="text-warning">Sesión Expirada</h2>
-                        <p>Tu sesión ha finalizado por inactividad (5 minutos) para proteger la información del paciente.</p>
+                        <p>Tu sesión ha finalizado por inactividad para proteger la información del paciente.</p>
                         <button className="btn btn-primary" onClick={handleFinalizarExpiracion}>
                             Regresar al Inicio
                         </button>

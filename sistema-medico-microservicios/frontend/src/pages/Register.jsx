@@ -13,6 +13,21 @@ function Register() {
 
   // Estado para capturar errores mientras se escribe
   const [errors, setErrors] = useState({ password: "", email: "", nombre: "", apellido: "", identificacion: "", telefono: "" });
+  const ESPECIALIDADES_COMUNES = [
+  "Medicina General",
+  "Cardiología",
+  "Pediatría",
+  "Ginecología",
+  "Dermatología",
+  "Oftalmología",
+  "Traumatología",
+  "Neurología",
+  "Psiquiatría",
+  "Oncología",
+  "Gastroenterología",
+  "Urología",
+  "Endocrinología"
+];
 
   const showAlert = (title, text, type = "error", action = null) => {
     setNotification({ show: true, title, text, type, onConfirm: action });
@@ -231,7 +246,21 @@ function Register() {
               <div className="medico-extra-box" style={{ animation: 'fadeIn 0.3s' }}>
                 <div className="form-group">
                   <label className="field-label">Especialidad</label>
-                  <input type="text" name="especialidad" placeholder="Ej: Cardiología" maxLength="20" />
+                  <input 
+        type="text" 
+        name="especialidad" 
+        placeholder="Escribe o selecciona..." 
+        list="especialidades-list"
+        maxLength="100"
+        required={isMedico} 
+        autoComplete="off"
+      />
+      
+      <datalist id="especialidades-list">
+        {ESPECIALIDADES_COMUNES.map((esp, index) => (
+          <option key={index} value={esp} />
+        ))}
+      </datalist>
                 </div>
                 <div className="form-group">
                   <label className="field-label">Número de Licencia</label>
