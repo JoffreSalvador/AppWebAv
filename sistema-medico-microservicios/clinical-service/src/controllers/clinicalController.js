@@ -65,9 +65,22 @@ const deleteConsulta = async (req, res) => {
         if (!datosEliminados) return res.status(404).json({ message: 'Consulta no encontrada' });
 
         // 2. ELIMINAR
-        await clinicalRepo.deleteConsulta(id);
+        try {
+            await clinicalRepo.deleteConsulta(id);
+        } catch (sqlError) {
+            // Error 547 en SQL Server es "Foreign Key Violation"
+            if (sqlError.number === 547) {
+                return res.status(409).json({ 
+                    message: 'No se puede eliminar la consulta porque tiene exámenes asociados. Elimine los exámenes primero.' 
+                });
+            }
+            throw sqlError; // Si es otro error, que lo atrape el catch general
+        }
 
-        // 3. REGISTRAR AUDITORÍA (QUÉ SE BORRÓ)
+        // 3. LOG DETALLADO: Guardamos qué se borró exactamente
+        // Formateamos un mensaje resumen para lectura rápida
+        const resumen = `Consulta del ${new Date(datosEliminados.FechaConsulta).toLocaleDateString()} - Motivo: ${datosEliminados.MotivoConsulta}`;
+
         await registrarLog({
             nivel: 'CRITICAL',
             servicio: 'ClinicalService',
@@ -76,8 +89,8 @@ const deleteConsulta = async (req, res) => {
             ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
             accion: 'Eliminar_Consulta',
             detalles: { 
-                mensaje: 'Se eliminó un registro médico completo',
-                datosRecuperables: datosEliminados 
+                mensaje: `Se eliminó: ${resumen}`, // Mensaje legible
+                datosRecuperables: datosEliminados   // Objeto completo JSON por seguridad
             }
         });
 
@@ -160,6 +173,8 @@ const updateExamen = async (req, res) => {
     }
 };
 
+
+
 const deleteExamen = async (req, res) => {
     const { id } = req.params;
     const editorId = req.user.id;
@@ -174,6 +189,8 @@ const deleteExamen = async (req, res) => {
         await clinicalRepo.deleteExamen(id);
 
         // 3. LOG
+        const resumen = `${datosEliminados.TipoExamen} (${new Date(datosEliminados.FechaRealizacion).toLocaleDateString()})`;
+
         await registrarLog({
             nivel: 'CRITICAL',
             servicio: 'ClinicalService',
@@ -182,7 +199,7 @@ const deleteExamen = async (req, res) => {
             ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
             accion: 'Eliminar_Examen',
             detalles: { 
-                mensaje: 'Se eliminó un examen del historial',
+                mensaje: `Se eliminó el examen: ${resumen}`,
                 datosRecuperables: datosEliminados 
             }
         });

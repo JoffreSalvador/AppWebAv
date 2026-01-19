@@ -390,11 +390,30 @@ function DashboardMedico() {
                                                 <i className="fas fa-pen"></i>
                                             </button>
                                             <button className="action-btn delete" title="Eliminar Consulta" onClick={() => {
-                                                showAlert("Eliminar Consulta", "¿Borrar registro?", "danger", async () => {
-                                                    const token = sessionStorage.getItem('token');
-                                                    await fetch(`${API_URL}/api/clinical/consultas/${c.ConsultaID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                                                    recargarHistoria(selectedPaciente.UsuarioID);
-                                                }, true);
+                                                showAlert(
+                                                    "Eliminar Consulta", 
+                                                    "¿Borrar registro permanentemente?", 
+                                                    "danger", 
+                                                    async () => {
+                                                        const token = sessionStorage.getItem('token');
+                                                        const res = await fetch(`${API_URL}/api/clinical/consultas/${c.ConsultaID}`, { 
+                                                            method: 'DELETE', 
+                                                            headers: { 'Authorization': `Bearer ${token}` } 
+                                                        });
+
+                                                        if (res.ok) {
+                                                            recargarHistoria(selectedPaciente.UsuarioID);
+                                                            showAlert("Éxito", "Consulta eliminada", "success");
+                                                        } else if (res.status === 409) {
+                                                            // AQUÍ CAPTURAMOS EL ERROR DE EXÁMENES ASOCIADOS
+                                                            const errorData = await res.json();
+                                                            showAlert("No se puede eliminar", errorData.message, "warning");
+                                                        } else {
+                                                            showAlert("Error", "Ocurrió un error al intentar eliminar.", "danger");
+                                                        }
+                                                    }, 
+                                                    true // Mostrar botón cancelar
+                                                );
                                             }}>
                                                 <i className="fas fa-trash-alt"></i>
                                             </button>
