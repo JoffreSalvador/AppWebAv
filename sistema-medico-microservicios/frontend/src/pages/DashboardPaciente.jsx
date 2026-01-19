@@ -67,20 +67,42 @@ function DashboardPaciente() {
 
     // --- LÓGICA DEL CHAT ---
     useEffect(() => {
-        if (view === 'chat' && medicoAsignado.id) {
-            const myId = sessionStorage.getItem('usuarioId');
-            fetch(`${API_URL}/api/chat/historial/${myId}/${medicoAsignado.id}`)
-                .then(res => res.json())
-                .then(data => setChatMessages(data));
+        const token = sessionStorage.getItem('token');
+        const myId = sessionStorage.getItem('usuarioId');
 
-            ws.current = new WebSocket(`ws://localhost:3004?userId=${myId}`);
+        // IMPORTANTE: Aquí cambiamos activeChat por medicoAsignado.id
+        if (view === 'chat' && medicoAsignado.id && token) {
+
+            // 1. Cargar historial mediante la API segura
+            fetch(`${API_URL}/api/chat/historial/${myId}/${medicoAsignado.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error("No autorizado");
+                    return res.json();
+                })
+                .then(data => setChatMessages(data))
+                .catch(err => console.error("Error historial:", err));
+
+            // 2. Conectar WebSocket seguro
+            ws.current = new WebSocket(`ws://localhost:3004?token=${token}`);
+
             ws.current.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
-                setChatMessages(prev => [...prev, msg]);
+                // Si el mensaje es del médico o mío, lo agrego
+                if (msg.userId === medicoAsignado.id || msg.receptorId === medicoAsignado.id) {
+                    setChatMessages(prev => [...prev, msg]);
+                }
             };
         }
-        return () => ws.current?.close();
-    }, [view, medicoAsignado.id]);
+
+        return () => {
+            if (ws.current) ws.current.close();
+        };
+    }, [view, medicoAsignado.id]); // El efecto se dispara cuando entras al chat o el médico carga
 
     const enviarMensaje = () => {
         if (!chatInput.trim() || !ws.current || !medicoAsignado.id) return;
@@ -212,19 +234,19 @@ function DashboardPaciente() {
                                 <div className="avatar-circle" style={{ width: '35px', height: '35px', fontSize: '15px' }}><i className="fas fa-user-md"></i></div>
                                 <div>
                                     <h4 style={{ margin: 0, fontSize: '14px' }}>Dr. {medicoAsignado.nombre}</h4>
-                                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--success)', fontWeight: 'bold' }}>Médico Asignado • En línea</p>
+                                    <p style={{ margin: 0, fontSize: '11px', color: 'var(--success)', fontWeight: 'bold' }}>Médico Asignado</p>
                                 </div>
                             </div>
 
                             <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', background: '#ffffff' }}>
                                 {chatMessages.map((msg, i) => (
-                                    <div key={i} style={{ 
-                                        alignSelf: msg.userId === medicoAsignado.id ? 'flex-start' : 'flex-end', 
-                                        background: msg.userId === medicoAsignado.id ? '#f0f2f5' : 'var(--primary)', 
-                                        color: msg.userId === medicoAsignado.id ? 'black' : 'white', 
-                                        padding: '10px 15px', 
-                                        borderRadius: '18px', 
-                                        maxWidth: '70%', 
+                                    <div key={i} style={{
+                                        alignSelf: msg.userId === medicoAsignado.id ? 'flex-start' : 'flex-end',
+                                        background: msg.userId === medicoAsignado.id ? '#f0f2f5' : 'var(--primary)',
+                                        color: msg.userId === medicoAsignado.id ? 'black' : 'white',
+                                        padding: '10px 15px',
+                                        borderRadius: '18px',
+                                        maxWidth: '70%',
                                         fontSize: '14px',
                                         boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
                                     }}>
@@ -238,13 +260,13 @@ function DashboardPaciente() {
                             </div>
 
                             <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', background: 'white' }}>
-                                <input 
-                                    className="small-input" 
-                                    style={{ flex: 1, borderRadius: '20px', paddingLeft: '20px' }} 
-                                    value={chatInput} 
-                                    onChange={e => setChatInput(e.target.value)} 
-                                    placeholder="Escribe un mensaje al doctor..." 
-                                    onKeyDown={e => e.key === 'Enter' && enviarMensaje()} 
+                                <input
+                                    className="small-input"
+                                    style={{ flex: 1, borderRadius: '20px', paddingLeft: '20px' }}
+                                    value={chatInput}
+                                    onChange={e => setChatInput(e.target.value)}
+                                    placeholder="Escribe un mensaje al doctor..."
+                                    onKeyDown={e => e.key === 'Enter' && enviarMensaje()}
                                 />
                                 <button className="btn btn-primary" style={{ width: '50px', borderRadius: '50%', height: '40px', margin: 0 }} onClick={enviarMensaje}>
                                     <i className="fas fa-paper-plane"></i>

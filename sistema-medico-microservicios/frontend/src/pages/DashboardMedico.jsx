@@ -176,7 +176,7 @@ function DashboardMedico() {
             diagnostico: form.diagnostico.value,
             tratamiento: form.tratamiento.value,
             sintomas: form.sintomas.value,
-            notas: form.notas.value 
+            notas: form.notas.value
         };
         const token = sessionStorage.getItem('token');
         const isEdit = modalConsulta.data !== null;
@@ -223,21 +223,52 @@ function DashboardMedico() {
     };
 
     // --- LÓGICA CHAT ---
+    // --- LÓGICA CHAT SEGURO ---
     useEffect(() => {
-        if (activeChat && view === 'chat') {
-            const myId = sessionStorage.getItem('usuarioId');
-            fetch(`${API_URL}/api/chat/historial/${myId}/${activeChat.UsuarioID}`)
-                .then(res => res.json()).then(data => setChatMessages(data));
+        const token = sessionStorage.getItem('token');
+        const myId = sessionStorage.getItem('usuarioId');
 
-            ws.current = new WebSocket(`ws://localhost:3004?userId=${myId}`);
+        if (activeChat && view === 'chat' && token) {
+            // 1. Cargar historial de forma SEGURA (HTTP con Header Authorization)
+            // Nota: Asegúrate de que el Gateway redirija /api/chat al puerto 3004
+            // O usa directamente http://localhost:3004/api/chat/...
+            fetch(`${API_URL}/api/chat/historial/${myId}/${activeChat.UsuarioID}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error("No autorizado");
+                    return res.json();
+                })
+                .then(data => setChatMessages(data))
+                .catch(err => console.error("Error historial:", err));
+
+            // 2. Conectar WebSocket de forma SEGURA (Enviando TOKEN, no el ID)
+            // El servidor ahora decodifica el token para saber quién eres (FIA)
+            ws.current = new WebSocket(`ws://localhost:3004?token=${token}`);
+
+            ws.current.onopen = () => {
+                console.log("Conexión WebSocket establecida y autenticada");
+            };
+
             ws.current.onmessage = (e) => {
                 const msg = JSON.parse(e.data);
+                // Solo añadir si es de la persona con la que estoy hablando
                 if (msg.userId === activeChat.UsuarioID || msg.receptorId === activeChat.UsuarioID) {
                     setChatMessages(prev => [...prev, msg]);
                 }
             };
+
+            ws.current.onclose = () => {
+                console.log("Conexión WebSocket cerrada");
+            };
         }
-        return () => ws.current?.close();
+
+        return () => {
+            if (ws.current) ws.current.close();
+        };
     }, [activeChat, view]);
 
     const enviarMensaje = () => {
@@ -436,14 +467,14 @@ function DashboardMedico() {
                                             <div key={e.ExamenID} style={{
                                                 display: 'flex',
                                                 justifyContent: 'space-between',
-                                                alignItems: 'center', 
+                                                alignItems: 'center',
                                                 padding: '8px 0',
                                                 borderBottom: '1px solid #eee'
                                             }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                     <span style={{ fontWeight: '700', fontSize: '14px', lineHeight: '1.2' }}>{e.TipoExamen}</span>
                                                     <span style={{ fontSize: '12px', color: '#888' }}>({new Date(e.FechaRealizacion).toLocaleDateString()})</span>
-                                                    
+
                                                     {/* --- CORRECCIÓN 1: MOSTRAR OBSERVACIONES --- */}
                                                     {e.ObservacionesResultados && (
                                                         <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0 0', fontStyle: 'italic', background: '#fff', padding: '5px', borderLeft: '3px solid #ccc' }}>
@@ -451,7 +482,7 @@ function DashboardMedico() {
                                                         </p>
                                                     )}
                                                 </div>
-                                                
+
                                                 {/* CONTENEDOR DE ACCIONES */}
                                                 <div className="col-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     {e.RutaArchivo && e.RutaArchivo !== '#' && (
@@ -459,14 +490,14 @@ function DashboardMedico() {
                                                             <i className="fas fa-eye" style={{ fontSize: '16px' }}></i>
                                                         </a>
                                                     )}
-                                                    
+
                                                     {/* --- CORRECCIÓN 2: BOTÓN EDITAR EXAMEN --- */}
                                                     <button className="action-btn edit" title="Editar examen"
                                                         onClick={() => setModalExamen({ isOpen: true, data: e, consultaId: c.ConsultaID })}
                                                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0' }}>
                                                         <i className="fas fa-pen" style={{ fontSize: '16px' }}></i>
                                                     </button>
-                                                    
+
                                                     <button className="action-btn delete" title="Eliminar examen"
                                                         onClick={() => {
                                                             showAlert("Eliminar Examen", "¿Borrar este examen?", "danger", async () => {
@@ -491,34 +522,92 @@ function DashboardMedico() {
                     )}
 
                     {view === 'chat' && (
-                        <div className="content-card" style={{ height: '70vh', display: 'flex', overflow: 'hidden' }}>
+                        <div className="content-card" style={{ height: '75vh', display: 'flex', overflow: 'hidden' }}>
+                            {/* Sidebar de Pacientes */}
                             <div style={{ width: '250px', borderRight: '1px solid var(--border)', background: '#f8f9fa' }}>
                                 <div style={{ padding: '15px', fontWeight: '800', fontSize: '12px', color: 'var(--text-secondary)' }}>MIS PACIENTES</div>
-                                {pacientes.map(p => (
-                                    <div key={p.UsuarioID}
-                                        onClick={() => { setActiveChat(p); setChatMessages([]); }}
-                                        style={{ padding: '12px 15px', cursor: 'pointer', borderBottom: '1px solid #eee', background: activeChat?.UsuarioID === p.UsuarioID ? '#e7f3ff' : 'transparent', textAlign: 'left' }}>
-                                        {p.Nombre} {p.Apellido}
-                                    </div>
-                                ))}
+                                <div style={{ overflowY: 'auto', height: 'calc(100% - 45px)' }}>
+                                    {pacientes.map(p => (
+                                        <div key={p.UsuarioID}
+                                            onClick={() => setActiveChat(p)}
+                                            style={{
+                                                padding: '12px 15px',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #eee',
+                                                background: activeChat?.UsuarioID === p.UsuarioID ? '#e7f3ff' : 'transparent',
+                                                color: activeChat?.UsuarioID === p.UsuarioID ? 'var(--primary)' : 'inherit',
+                                                fontWeight: activeChat?.UsuarioID === p.UsuarioID ? '700' : 'normal',
+                                                textAlign: 'left'
+                                            }}>
+                                            {p.Nombre} {p.Apellido}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+
+                            {/* Área Principal de Chat */}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#ffffff' }}>
                                 {activeChat ? (
                                     <>
-                                        <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            {chatMessages.map((msg, i) => (
-                                                <div key={i} style={{ alignSelf: msg.userId === activeChat.UsuarioID ? 'flex-start' : 'flex-end', background: msg.userId === activeChat.UsuarioID ? '#f0f2f5' : 'var(--primary)', color: msg.userId === activeChat.UsuarioID ? 'black' : 'white', padding: '8px 15px', borderRadius: '18px', maxWidth: '70%', fontSize: '14px' }}>
-                                                    {msg.text}
-                                                </div>
-                                            ))}
+                                        {/* Header del chat activo */}
+                                        <div style={{ padding: '10px 20px', borderBottom: '1px solid #eee', background: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div className="avatar-circle" style={{ width: '30px', height: '30px', fontSize: '14px' }}><i className="fas fa-user"></i></div>
+                                            <span style={{ fontWeight: '700' }}>{activeChat.Nombre} {activeChat.Apellido}</span>
                                         </div>
+
+                                        {/* Mensajes */}
+                                        <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            {chatMessages.map((msg, i) => {
+                                                const esDelPaciente = msg.userId === activeChat.UsuarioID;
+                                                return (
+                                                    <div key={i} style={{
+                                                        alignSelf: esDelPaciente ? 'flex-start' : 'flex-end',
+                                                        background: esDelPaciente ? '#f0f2f5' : 'var(--primary)',
+                                                        color: esDelPaciente ? 'black' : 'white',
+                                                        padding: '10px 15px',
+                                                        borderRadius: '18px',
+                                                        maxWidth: '70%',
+                                                        fontSize: '14px',
+                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                                    }}>
+                                                        {/* ETIQUETA SOBRE EL MENSAJE */}
+                                                        <span style={{
+                                                            fontSize: '9px',
+                                                            display: 'block',
+                                                            opacity: 0.7,
+                                                            marginBottom: '3px',
+                                                            fontWeight: 'bold',
+                                                            textAlign: esDelPaciente ? 'left' : 'right'
+                                                        }}>
+                                                            {esDelPaciente ? activeChat.Nombre : 'Yo'}
+                                                        </span>
+                                                        {msg.text}
+                                                    </div>
+                                                );
+                                            })}
+                                            {chatMessages.length === 0 && <div style={{ margin: 'auto', color: '#999' }}>No hay mensajes anteriores.</div>}
+                                        </div>
+
+                                        {/* Input */}
                                         <div style={{ padding: '15px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px' }}>
-                                            <input className="small-input" style={{ flex: 1, borderRadius: '20px' }} value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Escribe un mensaje..." onKeyDown={e => e.key === 'Enter' && enviarMensaje()} />
-                                            <button className="btn btn-primary" style={{ width: '50px', margin: 0 }} onClick={enviarMensaje}><i className="fas fa-paper-plane"></i></button>
+                                            <input
+                                                className="small-input"
+                                                style={{ flex: 1, borderRadius: '20px', paddingLeft: '15px' }}
+                                                value={chatInput}
+                                                onChange={e => setChatInput(e.target.value)}
+                                                placeholder={`Escribir a ${activeChat.Nombre}...`}
+                                                onKeyDown={e => e.key === 'Enter' && enviarMensaje()}
+                                            />
+                                            <button className="btn btn-primary" style={{ width: '45px', borderRadius: '50%', height: '45px', padding: 0, margin: 0 }} onClick={enviarMensaje}>
+                                                <i className="fas fa-paper-plane"></i>
+                                            </button>
                                         </div>
                                     </>
                                 ) : (
-                                    <div style={{ margin: 'auto', color: 'var(--text-secondary)' }}>Selecciona un paciente para iniciar el chat</div>
+                                    <div style={{ margin: 'auto', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                                        <i className="fas fa-comments" style={{ fontSize: '40px', display: 'block', marginBottom: '10px', opacity: 0.3 }}></i>
+                                        <p>Selecciona un paciente para iniciar el chat directo</p>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -555,7 +644,7 @@ function DashboardMedico() {
                     </div>
                 </div>
             )}
-            
+
             {modalUser.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-card">
@@ -582,18 +671,18 @@ function DashboardMedico() {
                                 <div className="field-container"><label className="field-label">Sangre</label><input name="tipoSangre" className="small-input" defaultValue={modalUser.data?.TipoSangre} /></div>
                             </div>
                             <div className="field-container"><label className="field-label">Dirección</label><input name="direccion" className="small-input" defaultValue={modalUser.data?.Direccion} /></div>
-                            
+
                             {/* --- CORRECCIÓN 3: MENSAJE DE AYUDA EN ALERGIAS --- */}
                             <div className="field-container">
                                 <label className="field-label">
-                                    Alergias 
+                                    Alergias
                                     <span style={{ fontSize: '11px', color: '#666', fontWeight: 'normal', marginLeft: '5px' }}>
                                         (Separar con comas: ej. Penicilina, Polvo)
                                     </span>
                                 </label>
                                 <textarea name="alergias" className="small-input" defaultValue={modalUser.data?.Alergias} rows="2"></textarea>
                             </div>
-                            
+
                             <div className="modal-actions-inline">
                                 <button type="submit" className="btn btn-primary">Guardar cambios</button>
                                 <button type="button" className="btn btn-danger" onClick={() => setModalUser({ isOpen: false })}>Cancelar</button>
