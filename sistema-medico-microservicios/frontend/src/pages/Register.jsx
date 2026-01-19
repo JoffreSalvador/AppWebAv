@@ -9,6 +9,7 @@ function Register() {
   const [msg, setMsg] = useState('');
   const [isMedico, setIsMedico] = useState(false);
   const [notification, setNotification] = useState({ show: false, title: "", text: "", type: "error", onConfirm: null });
+  const hoyString = new Date().toISOString().split('T')[0];
 
   // Estado para capturar errores mientras se escribe
   const [errors, setErrors] = useState({ password: "", email: "", nombre: "", apellido: "", identificacion: "", telefono: "" });
@@ -214,7 +215,7 @@ function Register() {
             {!isMedico && (
               <div className="form-group" style={{ marginBottom: '12px' }}>
                 <label className="field-label">Fecha de Nacimiento</label>
-                <input type="date" name="fechaNacimiento" required />
+                <input type="date" name="fechaNacimiento" max={hoyString}required />
               </div>
             )}
 

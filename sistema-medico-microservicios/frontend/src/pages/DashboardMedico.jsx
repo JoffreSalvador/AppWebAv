@@ -155,18 +155,18 @@ function DashboardMedico() {
         const form = e.target;
         const nuevoMedicoId = parseInt(form.medicoId.value);
 
-        const ejecutarUpdate = async () => {
-            const payload = {
-                medicoId: nuevoMedicoId,
-                nombre: form.nombre.value,
-                apellido: form.apellido.value,
-                identificacion: form.identificacion.value,
-                fechaNacimiento: form.fechaNacimiento.value,
-                tipoSangre: form.tipoSangre.value,
-                direccion: form.direccion.value,
-                telefono: form.telefono.value,
-                alergias: form.alergias.value
-            };
+        const payload = {
+            medicoId: nuevoMedicoId,
+            nombre: form.nombre.value,
+            apellido: form.apellido.value,
+            identificacion: form.identificacion.value,
+            fechaNacimiento: form.fechaNacimiento.value,
+            tipoSangre: form.tipoSangre.value,
+            direccion: form.direccion.value,
+            telefono: form.telefono.value,
+            alergias: form.alergias.value
+        };
+        const ejecutarUpdateReal = async () => {
             const token = sessionStorage.getItem('token');
             const res = await fetch(`${API_URL}/api/core/pacientes/${modalUser.data.PacienteID}`, {
                 method: 'PUT',
@@ -184,9 +184,16 @@ function DashboardMedico() {
             }
         };
 
+        const solicitarConfirmacion = () => {
+            setModalReAuth({
+                isOpen: true,
+                password: '',
+                pendingAction: ejecutarUpdateReal
+            });
+        };
         if (medico.internalId && nuevoMedicoId !== medico.internalId) {
-            showAlert("Transferencia", "¿Confirmas el cambio de médico?", "warning", ejecutarUpdate, true);
-        } else { ejecutarUpdate(); }
+            showAlert("Transferencia", "¿Confirmas el cambio de médico?", "warning", solicitarConfirmacion, true);
+        } else { solicitarConfirmacion(); }
     };
 
     const handleGuardarConsulta = async (e) => {

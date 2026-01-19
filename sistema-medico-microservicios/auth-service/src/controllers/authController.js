@@ -388,7 +388,7 @@ const verifyPassword = async (req, res) => {
         if (isMatch) {
             res.json({ success: true, message: "Re-autenticación exitosa" });
         } else {
-            res.status(401).json({ success: false, message: "Contraseña incorrecta" });
+            res.status(400).json({ success: false, message: "Contraseña incorrecta" });
         }
     } catch (error) {
         res.status(500).json({ message: "Error en la verificación" });
