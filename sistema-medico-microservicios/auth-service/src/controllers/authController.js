@@ -40,7 +40,7 @@ const resetPassword = async (req, res) => {
 
         // Registro en Log (opcional)
         await registrarLog({
-            nivel: 'INFO', servicio: 'AuthService', usuarioId: dbUser.UsuarioID, 
+            nivel: 'INFO', servicio: 'AuthService', usuarioId: dbUser.UsuarioID,
             accion: 'Reset_Password_Exito', detalles: { motivo: 'Recuperación vía Firebase' }
         });
 
@@ -106,7 +106,7 @@ const register = async (req, res) => {
         const token = jwt.sign(
             { id: newUser.UsuarioID, rol: rolId, email: newUser.Email },
             process.env.JWT_SECRET,
-            { expiresIn: '15m' } 
+            { expiresIn: '15m' }
         );
 
         // 6. Respuesta final
@@ -168,13 +168,13 @@ const login = async (req, res) => {
                     .input('Nuevos', sql.Int, nuevosIntentos)
                     .input('ID', sql.Int, userResult.UsuarioID)
                     .query('UPDATE Usuarios SET IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
-                
+
                 await registrarLog({
-                    nivel: 'WARNING', 
-                    servicio: 'AuthService', 
-                    usuarioId: userResult.UsuarioID, 
-                    rolId: userResult.RolID, 
-                    ip, 
+                    nivel: 'WARNING',
+                    servicio: 'AuthService',
+                    usuarioId: userResult.UsuarioID,
+                    rolId: userResult.RolID,
+                    ip,
                     accion: 'Login_Fallido',
                     detalles: { motivo: 'Contraseña incorrecta', intento: nuevosIntentos, maximos: 3 }
                 });
@@ -262,15 +262,15 @@ const verify2FA = async (req, res) => {
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '8h' });
 
         await registrarLog({
-            nivel: 'INFO', 
-            servicio: 'AuthService', 
-            usuarioId: dbUser.UsuarioID, 
-            rolId: dbUser.RolID, 
-            ip, 
+            nivel: 'INFO',
+            servicio: 'AuthService',
+            usuarioId: dbUser.UsuarioID,
+            rolId: dbUser.RolID,
+            ip,
             accion: 'Login_Exitoso',
             detalles: { metodo: '2FA_Verificado' }
         });
-        
+
         res.json({
             message: 'Autenticación completada',
             token: token,
@@ -302,7 +302,7 @@ const forgotPassword = async (req, res) => {
 };
 
 const adminUpdateUser = async (req, res) => {
-    const { id } = req.params; 
+    const { id } = req.params;
     const { email } = req.body; // Solo recibimos email
 
     try {
@@ -312,9 +312,9 @@ const adminUpdateUser = async (req, res) => {
         const userResult = await pool.request()
             .input('ID', sql.Int, id)
             .query('SELECT Email FROM Usuarios WHERE UsuarioID = @ID');
-        
+
         if (userResult.recordset.length === 0) return res.status(404).json({ message: "Usuario no encontrado" });
-        
+
         const oldEmail = userResult.recordset[0].Email;
 
         if (email) {
@@ -370,6 +370,30 @@ const deleteUserAuth = async (req, res) => {
         res.status(500).json({ message: 'Error eliminando usuario' });
     }
 };
+const verifyPassword = async (req, res) => {
+    try {
+        const { password } = req.body;
+        const usuarioId = req.user.id; // Obtenido del token por el middleware
+
+        const pool = await getConnection();
+        const result = await pool.request()
+            .input('id', sql.Int, usuarioId)
+            .query('SELECT PasswordHash FROM Usuarios WHERE UsuarioID = @id');
+
+        const user = result.recordset[0];
+        if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+        const isMatch = await bcrypt.compare(password, user.PasswordHash);
+
+        if (isMatch) {
+            res.json({ success: true, message: "Re-autenticación exitosa" });
+        } else {
+            res.status(401).json({ success: false, message: "Contraseña incorrecta" });
+        }
+    } catch (error) {
+        res.status(500).json({ message: "Error en la verificación" });
+    }
+}
 
 // EXPORTS CORREGIDOS (Sin duplicados)
 module.exports = {
@@ -379,5 +403,6 @@ module.exports = {
     forgotPassword,
     adminUpdateUser,
     deleteUserAuth,
-    resetPassword
+    resetPassword,
+    verifyPassword
 };

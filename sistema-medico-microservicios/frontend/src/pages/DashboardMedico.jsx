@@ -16,6 +16,8 @@ function DashboardMedico() {
     const [medicosList, setMedicosList] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
 
+    const [modalReAuth, setModalReAuth] = useState({ isOpen: false, password: '', pendingAction: null });
+
     // --- MODALES ---
     const [modalUser, setModalUser] = useState({ isOpen: false, data: null });
     const [modalConsulta, setModalConsulta] = useState({ isOpen: false, data: null });
@@ -178,21 +180,29 @@ function DashboardMedico() {
             sintomas: form.sintomas.value,
             notas: form.notas.value
         };
-        const token = sessionStorage.getItem('token');
-        const isEdit = modalConsulta.data !== null;
-        const url = isEdit ? `${API_URL}/api/clinical/consultas/${modalConsulta.data.ConsultaID}` : `${API_URL}/api/clinical/consultas`;
+        const guardarReal = async () => {
+            const token = sessionStorage.getItem('token');
+            const isEdit = modalConsulta.data !== null;
+            const url = isEdit ? `${API_URL}/api/clinical/consultas/${modalConsulta.data.ConsultaID}` : `${API_URL}/api/clinical/consultas`;
 
-        const res = await fetch(url, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
+            const res = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                setModalConsulta({ isOpen: false, data: null });
+                recargarHistoria(selectedPaciente.UsuarioID);
+                showAlert("Éxito", "Consulta guardada", "success");
+            }
+
+        };
+        setModalReAuth({
+            isOpen: true,
+            password: '',
+            pendingAction: guardarReal
         });
-
-        if (res.ok) {
-            setModalConsulta({ isOpen: false, data: null });
-            recargarHistoria(selectedPaciente.UsuarioID);
-            showAlert("Éxito", "Consulta guardada", "success");
-        }
     };
 
     const handleGuardarExamen = async (e) => {
@@ -206,20 +216,31 @@ function DashboardMedico() {
             rutaArchivo: form.ruta.value,
             observaciones: form.observaciones.value
         };
-        const token = sessionStorage.getItem('token');
-        const isEdit = modalExamen.data !== null;
-        const url = isEdit ? `${API_URL}/api/clinical/examenes/${modalExamen.data.ExamenID}` : `${API_URL}/api/clinical/examenes`;
 
-        const res = await fetch(url, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
+        const guardarReal = async () => {
+            const token = sessionStorage.getItem('token');
+            const isEdit = modalExamen.data !== null;
+            const url = isEdit ? `${API_URL}/api/clinical/examenes/${modalExamen.data.ExamenID}` : `${API_URL}/api/clinical/examenes`;
+
+            const res = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                setModalExamen({ isOpen: false, data: null, consultaId: null });
+                recargarHistoria(selectedPaciente.UsuarioID);
+            }
+
+        };
+
+        // DISPARAMOS EL MODAL DE RE-AUTENTICACIÓN
+        setModalReAuth({
+            isOpen: true,
+            password: '',
+            pendingAction: guardarReal
         });
-
-        if (res.ok) {
-            setModalExamen({ isOpen: false, data: null, consultaId: null });
-            recargarHistoria(selectedPaciente.UsuarioID);
-        }
     };
 
     // --- LÓGICA CHAT ---
@@ -276,6 +297,33 @@ function DashboardMedico() {
         const mensaje = { receptorId: activeChat.UsuarioID, username: medico.nombre, text: chatInput, rol: 1 };
         ws.current.send(JSON.stringify(mensaje));
         setChatInput('');
+    };
+
+    const ejecutarReAutenticacion = async (e) => {
+        e.preventDefault();
+        const token = sessionStorage.getItem('token');
+
+        try {
+            const res = await fetch(`${API_URL}/api/auth/verify-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ password: modalReAuth.password })
+            });
+
+            if (res.ok) {
+                const actionToExecute = modalReAuth.pendingAction;
+                setModalReAuth({ isOpen: false, password: '', pendingAction: null });
+                actionToExecute(); // Ejecuta la acción que quedó pausada
+            } else {
+                showAlert("Error de Seguridad", "Contraseña incorrecta. Confirmación rechazada.", "danger");
+                setModalReAuth({ ...modalReAuth, password: '' });
+            }
+        } catch (error) {
+            showAlert("Error", "No se pudo conectar con el servicio de seguridad.", "danger");
+        }
     };
 
     return (
@@ -421,30 +469,39 @@ function DashboardMedico() {
                                                 <i className="fas fa-pen"></i>
                                             </button>
                                             <button className="action-btn delete" title="Eliminar Consulta" onClick={() => {
-                                                showAlert(
-                                                    "Eliminar Consulta", 
-                                                    "¿Borrar registro permanentemente?", 
-                                                    "danger", 
-                                                    async () => {
-                                                        const token = sessionStorage.getItem('token');
-                                                        const res = await fetch(`${API_URL}/api/clinical/consultas/${c.ConsultaID}`, { 
-                                                            method: 'DELETE', 
-                                                            headers: { 'Authorization': `Bearer ${token}` } 
-                                                        });
+                                                const eliminarReal = async () => {
+                                                    showAlert(
+                                                        "Eliminar Consulta",
+                                                        "¿Borrar registro permanentemente?",
+                                                        "danger",
+                                                        async () => {
+                                                            const token = sessionStorage.getItem('token');
+                                                            const res = await fetch(`${API_URL}/api/clinical/consultas/${c.ConsultaID}`, {
+                                                                method: 'DELETE',
+                                                                headers: { 'Authorization': `Bearer ${token}` }
+                                                            });
 
-                                                        if (res.ok) {
-                                                            recargarHistoria(selectedPaciente.UsuarioID);
-                                                            showAlert("Éxito", "Consulta eliminada", "success");
-                                                        } else if (res.status === 409) {
-                                                            // AQUÍ CAPTURAMOS EL ERROR DE EXÁMENES ASOCIADOS
-                                                            const errorData = await res.json();
-                                                            showAlert("No se puede eliminar", errorData.message, "warning");
-                                                        } else {
-                                                            showAlert("Error", "Ocurrió un error al intentar eliminar.", "danger");
-                                                        }
-                                                    }, 
-                                                    true // Mostrar botón cancelar
-                                                );
+                                                            if (res.ok) {
+                                                                recargarHistoria(selectedPaciente.UsuarioID);
+                                                                showAlert("Éxito", "Consulta eliminada", "success");
+                                                            } else if (res.status === 409) {
+                                                                // AQUÍ CAPTURAMOS EL ERROR DE EXÁMENES ASOCIADOS
+                                                                const errorData = await res.json();
+                                                                showAlert("No se puede eliminar", errorData.message, "warning");
+                                                            } else {
+                                                                showAlert("Error", "Ocurrió un error al intentar eliminar.", "danger");
+                                                            }
+                                                        },
+                                                        true // Mostrar botón cancelar
+
+                                                    );
+                                                };
+
+                                                setModalReAuth({
+                                                    isOpen: true,
+                                                    password: '',
+                                                    pendingAction: eliminarReal
+                                                });
                                             }}>
                                                 <i className="fas fa-trash-alt"></i>
                                             </button>
@@ -500,11 +557,15 @@ function DashboardMedico() {
 
                                                     <button className="action-btn delete" title="Eliminar examen"
                                                         onClick={() => {
-                                                            showAlert("Eliminar Examen", "¿Borrar este examen?", "danger", async () => {
-                                                                const token = sessionStorage.getItem('token');
-                                                                await fetch(`${API_URL}/api/clinical/examenes/${e.ExamenID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                                                                recargarHistoria(selectedPaciente.UsuarioID);
-                                                            }, true);
+                                                            const eliminarReal = () => {
+                                                                showAlert("Eliminar Examen", "¿Borrar este examen?", "danger", async () => {
+                                                                    const token = sessionStorage.getItem('token');
+                                                                    await fetch(`${API_URL}/api/clinical/examenes/${e.ExamenID}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                                                                    recargarHistoria(selectedPaciente.UsuarioID);
+                                                                }, true);
+                                                            };
+
+                                                            setModalReAuth({ isOpen: true, password: '', pendingAction: eliminarReal });
                                                         }}
                                                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: '0' }}>
                                                         <i className="fas fa-trash-alt" style={{ fontSize: '16px' }}></i>
@@ -731,7 +792,7 @@ function DashboardMedico() {
 
             {/* MODAL ALERTA */}
             {alertConfig.isOpen && (
-                <div className="modal-overlay" style={{ zIndex: 3000 }}>
+                <div className="modal-overlay" style={{ zIndex: 5000 }}>
                     <div className="modal-card notification-modal">
                         <div className={`${alertConfig.type}-icon`}>{alertConfig.type === 'success' ? '✓' : alertConfig.type === 'danger' ? '✕' : '!'}</div>
                         <h2 className={alertConfig.type === 'danger' ? 'text-danger' : ''}>{alertConfig.title}</h2>
@@ -740,6 +801,41 @@ function DashboardMedico() {
                             <button className="btn btn-primary" onClick={() => { alertConfig.onConfirm?.(); closeAlert(); }}>{alertConfig.confirmText}</button>
                             {alertConfig.showCancel && <button className="btn btn-danger" onClick={closeAlert}>Cancelar</button>}
                         </div>
+                    </div>
+                </div>
+            )}
+            {modalReAuth.isOpen && (
+                <div className="modal-overlay" style={{ zIndex: 4000 }}>
+                    <div className="modal-card" style={{ maxWidth: '350px', textAlign: 'center' }}>
+                        <div className="danger-icon" style={{ marginBottom: '15px' }}>
+                            <i className="fas fa-lock"></i>
+                        </div>
+                        <h2 className="text-danger" style={{ marginTop: 0 }}>Confirmar Acción</h2>
+                        <p style={{ fontSize: '14px', marginBottom: '20px', color: '#65676b' }}>
+                            Estás realizando una modificación sensible en la historia clínica. <br />
+                            <b>Por seguridad, ingresa tu contraseña:</b>
+                        </p>
+                        <form onSubmit={ejecutarReAutenticacion}>
+                            <div className="field-container" style={{ marginBottom: '20px' }}>
+                                <input
+                                    type="password"
+                                    className="small-input"
+                                    placeholder="Contraseña del Médico"
+                                    style={{ textAlign: 'center', fontSize: '18px' }}
+                                    value={modalReAuth.password}
+                                    onChange={e => setModalReAuth({ ...modalReAuth, password: e.target.value })}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="modal-actions-inline">
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Confirmar</button>
+                                <button type="button" className="btn btn-danger" style={{ flex: 1 }}
+                                    onClick={() => setModalReAuth({ isOpen: false, password: '', pendingAction: null })}>
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
