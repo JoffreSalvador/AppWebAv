@@ -26,7 +26,7 @@ const updateMedico = async (req, res) => {
         const pool = await getConnection();
         const snapshot = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT * FROM Medicos WHERE MedicoID = @ID');
+            .query('SELECT * FROM core.Medicos WHERE MedicoID = @ID');
         const datosAnteriores = snapshot.recordset[0];
         
         // Validación de licencia única
@@ -71,7 +71,7 @@ const deleteMedicoCheck = async (req, res) => {
         const pool = await getConnection();
         const snapshot = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT * FROM Medicos WHERE MedicoID = @ID');
+            .query('SELECT * FROM core.Medicos WHERE MedicoID = @ID');
         const datosEliminados = snapshot.recordset[0];
 
         await adminRepo.deleteMedico(id);
@@ -101,7 +101,7 @@ const deletePacienteFull = async (req, res) => {
         const pool = await getConnection();
         const snapshot = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT * FROM Pacientes WHERE PacienteID = @ID');
+            .query('SELECT * FROM core.Pacientes WHERE PacienteID = @ID');
         const datosEliminados = snapshot.recordset[0];
 
         await adminRepo.deletePaciente(id);

@@ -8,8 +8,8 @@ const getAllMedicos = async () => {
             m.*, 
             u.Email,
             u.Activo 
-        FROM DB_Core.dbo.Medicos m
-        INNER JOIN DB_Auth.dbo.Usuarios u ON m.UsuarioID = u.UsuarioID
+        FROM core.Medicos m
+        INNER JOIN auth.Usuarios u ON m.UsuarioID = u.UsuarioID
     `);
     return result.recordset; 
 };
@@ -23,9 +23,9 @@ const getAllPacientes = async () => {
             u.Activo,
             m.Nombre as NombreMedico, 
             m.Apellido as ApellidoMedico
-        FROM DB_Core.dbo.Pacientes p
-        INNER JOIN DB_Auth.dbo.Usuarios u ON p.UsuarioID = u.UsuarioID
-        LEFT JOIN DB_Core.dbo.Medicos m ON p.MedicoID = m.MedicoID
+        FROM core.Pacientes p
+        INNER JOIN auth.Usuarios u ON p.UsuarioID = u.UsuarioID
+        LEFT JOIN core.Medicos m ON p.MedicoID = m.MedicoID
     `);
     return result.recordset; 
 };
@@ -36,7 +36,7 @@ const checkLicense = async (licencia, excludeId) => {
     const result = await pool.request()
         .input('Licencia', sql.NVarChar, licencia)
         .input('ExcludeID', sql.Int, excludeId)
-        .query('SELECT COUNT(*) as Count FROM Medicos WHERE NumeroLicencia = @Licencia AND MedicoID != @ExcludeID');
+        .query('SELECT COUNT(*) as Count FROM core.Medicos WHERE NumeroLicencia = @Licencia AND MedicoID != @ExcludeID');
     return result.recordset[0].Count > 0;
 };
 
@@ -50,20 +50,20 @@ const updateMedico = async (id, data) => {
         .input('Especialidad', sql.NVarChar, data.especialidad)
         .input('Licencia', sql.NVarChar, data.licencia)
         .input('Telefono', sql.NVarChar, data.telefono)
-        .query('UPDATE Medicos SET Nombre=@Nombre, Apellido=@Apellido, Identificacion=@Identificacion, Especialidad=@Especialidad, NumeroLicencia=@Licencia, Telefono=@Telefono WHERE MedicoID=@ID');
+        .query('UPDATE core.Medicos SET Nombre=@Nombre, Apellido=@Apellido, Identificacion=@Identificacion, Especialidad=@Especialidad, NumeroLicencia=@Licencia, Telefono=@Telefono WHERE MedicoID=@ID');
 };
 
 const getPatientsByMedico = async (medicoId) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('MedicoID', sql.Int, medicoId)
-        .query('SELECT * FROM Pacientes WHERE MedicoID = @MedicoID');
+        .query('SELECT * FROM core.Pacientes WHERE MedicoID = @MedicoID');
     return result.recordset;
 };
 
 const deleteMedico = async (id) => {
     const pool = await getConnection();
-    await pool.request().input('ID', sql.Int, id).query('DELETE FROM Medicos WHERE MedicoID = @ID');
+    await pool.request().input('ID', sql.Int, id).query('DELETE FROM core.Medicos WHERE MedicoID = @ID');
 };
 
 const deletePaciente = async (id) => {
@@ -73,7 +73,7 @@ const deletePaciente = async (id) => {
     // lo necesitamos para borrar también sus mensajes de chat.
     const userRes = await pool.request()
         .input('ID', sql.Int, id)
-        .query('SELECT UsuarioID FROM Pacientes WHERE PacienteID = @ID');
+        .query('SELECT UsuarioID FROM core.Pacientes WHERE PacienteID = @ID');
         
     // Si el paciente ya no existe, salimos
     if (userRes.recordset.length === 0) return;
@@ -94,27 +94,27 @@ const deletePaciente = async (id) => {
         // --- PASO A: Limpiar DB_Clinical ---
         // Primero Exámenes (por si tienen FK a Consultas)
         await request.query(`
-            DELETE FROM DB_Clinical.dbo.Examenes 
+            DELETE FROM clinical.Examenes 
             WHERE PacienteID = @PacienteID
         `);
 
         // Luego Consultas (Diagnósticos, Tratamientos)
         await request.query(`
-            DELETE FROM DB_Clinical.dbo.Consultas 
+            DELETE FROM clinical.Consultas 
             WHERE PacienteID = @PacienteID
         `);
 
         // --- PASO B: Limpiar DB_Chat ---
         // Borramos mensajes enviados POR él o PARA él
         await request.query(`
-            DELETE FROM DB_Chat.dbo.Mensajes 
+            DELETE FROM chat.Mensajes 
             WHERE UsuarioID = @UsuarioID OR ReceptorID = @UsuarioID
         `);
 
         // --- PASO C: Limpiar DB_Core ---
         // Finalmente borramos el perfil del paciente
         await request.query(`
-            DELETE FROM Pacientes 
+            DELETE FROM core.Pacientes 
             WHERE PacienteID = @PacienteID
         `);
 
@@ -133,7 +133,7 @@ const unlockUser = async (usuarioId) => {
     await pool.request()
         .input('ID', sql.Int, usuarioId)
         .query(`
-            UPDATE DB_Auth.dbo.Usuarios 
+            UPDATE auth.Usuarios 
             SET Activo = 1, IntentosFallidos = 0 
             WHERE UsuarioID = @ID
         `);
@@ -154,8 +154,8 @@ const getAuditLogs = async () => {
             L.Detalles,
             L.UsuarioID,
             U.Email
-        FROM DB_Logs.dbo.Auditoria L
-        LEFT JOIN DB_Auth.dbo.Usuarios U ON L.UsuarioID = U.UsuarioID
+        FROM logs.Auditoria L
+        LEFT JOIN auth.Usuarios U ON L.UsuarioID = U.UsuarioID
         ORDER BY L.FechaHora DESC
     `);
     return result.recordset;

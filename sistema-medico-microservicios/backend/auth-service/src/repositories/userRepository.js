@@ -8,7 +8,7 @@ const createUser = async (email, passwordHash, rolId) => {
         .input('PasswordHash', sql.NVarChar, passwordHash)
         .input('RolID', sql.Int, rolId)
         .query(`
-            INSERT INTO Usuarios (Email, PasswordHash, RolID)
+            INSERT INTO auth.Usuarios (Email, PasswordHash, RolID)
             OUTPUT INSERTED.UsuarioID, INSERTED.Email, INSERTED.RolID
             VALUES (@Email, @PasswordHash, @RolID)
         `);
@@ -19,7 +19,7 @@ const findUserByEmail = async (email) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('Email', sql.NVarChar, email)
-        .query('SELECT * FROM Usuarios WHERE Email = @Email');
+        .query('SELECT * FROM auth.Usuarios WHERE Email = @Email');
     return result.recordset[0]; // Retorna undefined si no existe
 };
 
@@ -29,7 +29,7 @@ const updatePassword = async (email, newPasswordHash) => {
         .input('Email', sql.NVarChar, email)
         .input('PasswordHash', sql.NVarChar, newPasswordHash)
         .query(`
-            UPDATE Usuarios 
+            UPDATE auth.Usuarios 
             SET PasswordHash = @PasswordHash 
             WHERE Email = @Email
         `);

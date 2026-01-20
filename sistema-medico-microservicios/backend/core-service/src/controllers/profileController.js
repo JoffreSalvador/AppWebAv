@@ -127,7 +127,7 @@ const updatePacienteProfile = async (req, res) => {
         const pool = await getConnection();
         const oldDataRes = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT * FROM Pacientes WHERE PacienteID = @ID');
+            .query('SELECT * FROM core.Pacientes WHERE PacienteID = @ID');
         
         const oldData = oldDataRes.recordset[0];
 

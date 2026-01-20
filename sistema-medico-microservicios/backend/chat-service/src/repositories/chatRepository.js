@@ -10,7 +10,7 @@ const saveMessage = async (data) => {
             .input('Contenido', sql.NVarChar, data.text)
             .input('RolID', sql.Int, data.rol) 
             .query(`
-                INSERT INTO Mensajes (UsuarioID, ReceptorID, NombreUsuario, Contenido, RolID, FechaEnvio)
+                INSERT INTO chat.Mensajes (UsuarioID, ReceptorID, NombreUsuario, Contenido, RolID, FechaEnvio)
                 VALUES (@UsuarioID, @ReceptorID, @NombreUsuario, @Contenido, @RolID, GETDATE())
             `);
     } catch (error) {
@@ -32,7 +32,7 @@ const getRecentMessages = async (u1, u2) => {
                     FechaEnvio, 
                     UsuarioID as userId,
                     ReceptorID as receptorId  -- <--- ¡ESTO FALTABA!
-                FROM Mensajes
+                FROM chat.Mensajes
                 WHERE (UsuarioID = @u1 AND ReceptorID = @u2)
                    OR (UsuarioID = @u2 AND ReceptorID = @u1)
                 ORDER BY FechaEnvio ASC

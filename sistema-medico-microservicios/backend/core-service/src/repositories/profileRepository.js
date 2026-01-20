@@ -12,7 +12,7 @@ const createMedico = async (data) => {
         .input('NumeroLicencia', sql.NVarChar, data.licencia)
         .input('Telefono', sql.NVarChar, data.telefono)
         .query(`
-            INSERT INTO Medicos (UsuarioID, Nombre, Apellido, Identificacion, Especialidad, NumeroLicencia, Telefono)
+            INSERT INTO core.Medicos (UsuarioID, Nombre, Apellido, Identificacion, Especialidad, NumeroLicencia, Telefono)
             VALUES (@UsuarioID, @Nombre, @Apellido, @Identificacion, @Especialidad, @NumeroLicencia, @Telefono)
         `);
     return result;
@@ -23,7 +23,7 @@ const getPacientesByMedico = async (medicoUsuarioId) => {
     const pool = await getConnection();
     const medico = await pool.request()
         .input('UsuarioID', sql.Int, medicoUsuarioId)
-        .query('SELECT MedicoID FROM Medicos WHERE UsuarioID = @UsuarioID');
+        .query('SELECT MedicoID FROM core.Medicos WHERE UsuarioID = @UsuarioID');
 
     if (medico.recordset.length === 0) return [];
 
@@ -32,7 +32,7 @@ const getPacientesByMedico = async (medicoUsuarioId) => {
     // Ahora buscamos sus pacientes
     const result = await pool.request()
         .input('MedicoID', sql.Int, medicoId)
-        .query('SELECT * FROM Pacientes WHERE MedicoID = @MedicoID');
+        .query('SELECT * FROM core.Pacientes WHERE MedicoID = @MedicoID');
 
     return result.recordset;
 };
@@ -48,7 +48,7 @@ const createPaciente = async (data) => {
         .input('Identificacion', sql.NVarChar, data.identificacion)
         .input('TelefonoContacto', sql.NVarChar, data.telefono) // Aquí mapeamos data.telefono a la columna SQL
         .query(`
-            INSERT INTO Pacientes (UsuarioID, MedicoID, Nombre, Apellido, FechaNacimiento, Identificacion, TelefonoContacto)
+            INSERT INTO core.Pacientes (UsuarioID, MedicoID, Nombre, Apellido, FechaNacimiento, Identificacion, TelefonoContacto)
             VALUES (@UsuarioID, @MedicoID, @Nombre, @Apellido, @FechaNacimiento, @Identificacion, @TelefonoContacto)
         `);
 };
@@ -60,7 +60,7 @@ const getAvailableMedico = async (especialidad = 'Medicina General') => {
     // Intentamos buscar uno de Medicina General
     let result = await pool.request()
         .input('Esp', sql.NVarChar, especialidad)
-        .query('SELECT TOP 1 MedicoID FROM Medicos WHERE Especialidad = @Esp');
+        .query('SELECT TOP 1 MedicoID FROM core.Medicos WHERE Especialidad = @Esp');
 
     // Si no hay de Medicina General, traemos cualquier médico disponible
     if (result.recordset.length === 0) {
@@ -79,8 +79,8 @@ const getPacienteByUsuarioId = async (usuarioId) => {
                 p.*, 
                 m.UsuarioID as MedicoUsuarioID, 
                 m.Nombre as NombreMedico 
-            FROM Pacientes p    
-            JOIN Medicos m ON p.MedicoID = m.MedicoID
+            FROM core.Pacientes p    
+            JOIN core.Medicos m ON p.MedicoID = m.MedicoID
             WHERE p.UsuarioID = @UsuarioID
         `);
     return result.recordset[0]; // Retorna el primer resultado o undefined
@@ -90,7 +90,7 @@ const getPacienteByUsuarioId = async (usuarioId) => {
 const getAllMedicos = async () => {
     const pool = await getConnection();
     const result = await pool.request()
-        .query('SELECT MedicoID, Nombre, Apellido, Especialidad FROM Medicos');
+        .query('SELECT MedicoID, Nombre, Apellido, Especialidad FROM core.Medicos');
     return result.recordset;
 };
 
@@ -109,7 +109,7 @@ const updatePaciente = async (id, data) => {
         .input('TelefonoContacto', sql.NVarChar, data.telefono)
         .input('Alergias', sql.NVarChar, data.alergias)
         .query(`
-            UPDATE Pacientes
+            UPDATE core.Pacientes
             SET MedicoID = @MedicoID,
                 Nombre = @Nombre,
                 Apellido = @Apellido,
@@ -132,9 +132,9 @@ const checkUniqueData = async (identificacion, licencia, excludeUserId = 0) => {
         .input('Identificacion', sql.NVarChar, identificacion)
         .input('ExcludeID', sql.Int, excludeUserId)
         .query(`
-            SELECT 'Cédula' as Campo FROM Medicos WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
+            SELECT 'Cédula' as Campo FROM core.Medicos WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
             UNION ALL
-            SELECT 'Cédula' as Campo FROM Pacientes WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
+            SELECT 'Cédula' as Campo FROM core.Pacientes WHERE Identificacion = @Identificacion AND UsuarioID != @ExcludeID
         `);
 
     if (idCheck.recordset.length > 0) {
@@ -146,7 +146,7 @@ const checkUniqueData = async (identificacion, licencia, excludeUserId = 0) => {
         const licCheck = await pool.request()
             .input('Licencia', sql.NVarChar, licencia)
             .input('ExcludeID', sql.Int, excludeUserId)
-            .query(`SELECT 'Licencia' as Campo FROM Medicos WHERE NumeroLicencia = @Licencia AND UsuarioID != @ExcludeID`);
+            .query(`SELECT 'Licencia' as Campo FROM core.Medicos WHERE NumeroLicencia = @Licencia AND UsuarioID != @ExcludeID`);
 
         if (licCheck.recordset.length > 0) {
             return { exists: true, field: 'Número de Licencia' };
@@ -160,7 +160,7 @@ const getMedicoByUsuarioId = async (usuarioId) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('UsuarioID', sql.Int, usuarioId)
-        .query('SELECT * FROM Medicos WHERE UsuarioID = @UsuarioID');
+        .query('SELECT * FROM core.Medicos WHERE UsuarioID = @UsuarioID');
     return result.recordset[0];
 };
 

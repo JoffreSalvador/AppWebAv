@@ -14,7 +14,7 @@ const createConsulta = async (data) => {
         .input('Tratamiento', sql.NVarChar, encrypt(data.tratamiento))
         .input('NotasAdicionales', sql.NVarChar, encrypt(data.notas))
         .query(`
-            INSERT INTO Consultas (PacienteID, MedicoID, FechaConsulta, MotivoConsulta, Sintomas, Diagnostico, Tratamiento, NotasAdicionales)
+            INSERT INTO clinical.Consultas (PacienteID, MedicoID, FechaConsulta, MotivoConsulta, Sintomas, Diagnostico, Tratamiento, NotasAdicionales)
             VALUES (@PacienteID, @MedicoID, @FechaConsulta, @MotivoConsulta, @Sintomas, @Diagnostico, @Tratamiento, @NotasAdicionales)
         `);
     return result;
@@ -31,7 +31,7 @@ const updateConsulta = async (id, data) => {
         .input('Tratamiento', sql.NVarChar, encrypt(data.tratamiento))
         .input('NotasAdicionales', sql.NVarChar, encrypt(data.notas))
         .query(`
-            UPDATE Consultas 
+            UPDATE clinical.Consultas 
             SET FechaConsulta = @FechaConsulta, MotivoConsulta = @MotivoConsulta, Sintomas = @Sintomas, 
                 Diagnostico = @Diagnostico, Tratamiento = @Tratamiento, NotasAdicionales = @NotasAdicionales
             WHERE ConsultaID = @ID
@@ -42,15 +42,15 @@ const updateConsulta = async (id, data) => {
 const deleteConsulta = async (id) => {
     const pool = await getConnection();
     // Opcional: Borrar exámenes hijos primero si no hay CASCADE definido en SQL
-    // await pool.request().input('ID', sql.Int, id).query('DELETE FROM Examenes WHERE ConsultaID = @ID');
-    return await pool.request().input('ID', sql.Int, id).query('DELETE FROM Consultas WHERE ConsultaID = @ID');
+    // await pool.request().input('ID', sql.Int, id).query('DELETE FROM clinical.Examenes WHERE ConsultaID = @ID');
+    return await pool.request().input('ID', sql.Int, id).query('DELETE FROM clinical.Consultas WHERE ConsultaID = @ID');
 };
 
 const getConsultasByPaciente = async (pacienteId) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('PacienteID', sql.Int, pacienteId)
-        .query('SELECT * FROM Consultas WHERE PacienteID = @PacienteID ORDER BY FechaConsulta DESC');
+        .query('SELECT * FROM clinical.Consultas WHERE PacienteID = @PacienteID ORDER BY FechaConsulta DESC');
     return result.recordset.map(decryptConsulta);
 };
 
@@ -68,7 +68,7 @@ const createExamen = async (data) => {
         .input('RutaArchivo', sql.NVarChar, encrypt(data.rutaArchivo || ''))
         .input('Observaciones', sql.NVarChar, encrypt(data.observaciones))
         .query(`
-            INSERT INTO Examenes (ConsultaID, PacienteID, TipoExamen, FechaRealizacion, RutaArchivo, ObservacionesResultados, FechaSubida)
+            INSERT INTO clinical.Examenes (ConsultaID, PacienteID, TipoExamen, FechaRealizacion, RutaArchivo, ObservacionesResultados, FechaSubida)
             VALUES (@ConsultaID, @PacienteID, @TipoExamen, @FechaRealizacion, @RutaArchivo, @Observaciones, GETDATE())
         `);
     return result;
@@ -85,7 +85,7 @@ const updateExamen = async (id, data) => {
         .input('RutaArchivo', sql.NVarChar, encrypt(data.rutaArchivo))
         .input('Observaciones', sql.NVarChar, encrypt(data.observaciones))
         .query(`
-            UPDATE Examenes 
+            UPDATE clinical.Examenes 
             SET TipoExamen = @TipoExamen, FechaRealizacion = @FechaRealizacion, 
                 RutaArchivo = @RutaArchivo, ObservacionesResultados = @Observaciones 
             WHERE ExamenID = @ID
@@ -94,14 +94,14 @@ const updateExamen = async (id, data) => {
 
 const deleteExamen = async (id) => {
     const pool = await getConnection();
-    return await pool.request().input('ID', sql.Int, id).query('DELETE FROM Examenes WHERE ExamenID = @ID');
+    return await pool.request().input('ID', sql.Int, id).query('DELETE FROM clinical.Examenes WHERE ExamenID = @ID');
 };
 
 const getExamenesByPaciente = async (pacienteId) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('PacienteID', sql.Int, pacienteId)
-        .query('SELECT * FROM Examenes WHERE PacienteID = @PacienteID ORDER BY FechaRealizacion DESC');
+        .query('SELECT * FROM clinical.Examenes WHERE PacienteID = @PacienteID ORDER BY FechaRealizacion DESC');
     return result.recordset.map(e => ({
         ...e,
         RutaArchivo: decrypt(e.RutaArchivo), // DESCIFRAR
@@ -113,7 +113,7 @@ const getConsultaById = async (id) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('ID', sql.Int, id)
-        .query('SELECT * FROM Consultas WHERE ConsultaID = @ID');
+        .query('SELECT * FROM clinical.Consultas WHERE ConsultaID = @ID');
     return result.recordset[0] ? decryptConsulta(result.recordset[0]) : null;
 };
 
@@ -121,7 +121,7 @@ const getExamenById = async (id) => {
     const pool = await getConnection();
     const result = await pool.request()
         .input('ID', sql.Int, id)
-        .query('SELECT * FROM Examenes WHERE ExamenID = @ID');
+        .query('SELECT * FROM clinical.Examenes WHERE ExamenID = @ID');
     const e = result.recordset[0];
     return e ? { ...e, RutaArchivo: decrypt(e.RutaArchivo), ObservacionesResultados: decrypt(e.ObservacionesResultados) } : null;
 };

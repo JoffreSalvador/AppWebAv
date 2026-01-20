@@ -36,7 +36,7 @@ const resetPassword = async (req, res) => {
         // 1. Verificar que el usuario exista
         const result = await pool.request()
             .input('email', sql.VarChar, email)
-            .query('SELECT UsuarioID FROM Usuarios WHERE Email = @email');
+            .query('SELECT UsuarioID FROM auth.Usuarios WHERE Email = @email');
 
         const dbUser = result.recordset[0];
         if (!dbUser) return res.status(404).json({ message: "Usuario no encontrado" });
@@ -51,7 +51,7 @@ const resetPassword = async (req, res) => {
         await pool.request()
             .input('email', sql.VarChar, email)
             .input('pass', sql.VarChar, newHash)
-            .query('UPDATE Usuarios SET PasswordHash = @pass, IntentosFallidos = 0 WHERE Email = @email');
+            .query('UPDATE auth.Usuarios SET PasswordHash = @pass, IntentosFallidos = 0 WHERE Email = @email');
 
         // Registro en Log (opcional)
         await registrarLog({
@@ -171,7 +171,7 @@ const login = async (req, res) => {
                 await pool.request()
                     .input('ID', sql.Int, userResult.UsuarioID)
                     .input('Nuevos', sql.Int, nuevosIntentos)
-                    .query('UPDATE Usuarios SET Activo = 0, IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
+                    .query('UPDATE auth.Usuarios SET Activo = 0, IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
 
                 await registrarLog({
                     nivel: 'CRITICAL', servicio: 'AuthService', usuarioId: userResult.UsuarioID, rolId: userResult.RolID, ip, accion: 'Cuenta_Bloqueada',
@@ -182,7 +182,7 @@ const login = async (req, res) => {
                 await pool.request()
                     .input('Nuevos', sql.Int, nuevosIntentos)
                     .input('ID', sql.Int, userResult.UsuarioID)
-                    .query('UPDATE Usuarios SET IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
+                    .query('UPDATE auth.Usuarios SET IntentosFallidos = @Nuevos WHERE UsuarioID = @ID');
 
                 await registrarLog({
                     nivel: 'WARNING',
@@ -204,7 +204,7 @@ const login = async (req, res) => {
             .input('ID', sql.Int, userResult.UsuarioID)
             .input('Cod', sql.NVarChar, codigo2FA)
             .input('Exp', sql.DateTime, expiracion)
-            .query('UPDATE Usuarios SET Codigo2FA = @Cod, Expiracion2FA = @Exp, IntentosFallidos = 0 WHERE UsuarioID = @ID');
+            .query('UPDATE auth.Usuarios SET Codigo2FA = @Cod, Expiracion2FA = @Exp, IntentosFallidos = 0 WHERE UsuarioID = @ID');
 
         const mailOptions = {
             from: '"Apolo Sistema Médico" <keimag.apolo@gmail.com>',
@@ -261,7 +261,7 @@ const verify2FA = async (req, res) => {
         const pool = await getConnection();
         const result = await pool.request()
             .input('ID', sql.Int, userId)
-            .query('SELECT UsuarioID, Email, RolID, Codigo2FA, Expiracion2FA FROM Usuarios WHERE UsuarioID = @ID');
+            .query('SELECT UsuarioID, Email, RolID, Codigo2FA, Expiracion2FA FROM auth.Usuarios WHERE UsuarioID = @ID');
 
         const dbUser = result.recordset[0];
 
@@ -271,7 +271,7 @@ const verify2FA = async (req, res) => {
 
         await pool.request()
             .input('ID', sql.Int, userId)
-            .query('UPDATE Usuarios SET Codigo2FA = NULL, Expiracion2FA = NULL WHERE UsuarioID = @ID');
+            .query('UPDATE auth.Usuarios SET Codigo2FA = NULL, Expiracion2FA = NULL WHERE UsuarioID = @ID');
 
         const payload = { id: dbUser.UsuarioID, rol: dbUser.RolID, email: dbUser.Email };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '10m' });
@@ -326,7 +326,7 @@ const adminUpdateUser = async (req, res) => {
         // Buscamos el email anterior para actualizarlo también en Firebase
         const userResult = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT Email FROM Usuarios WHERE UsuarioID = @ID');
+            .query('SELECT Email FROM auth.Usuarios WHERE UsuarioID = @ID');
 
         if (userResult.recordset.length === 0) return res.status(404).json({ message: "Usuario no encontrado" });
 
@@ -341,7 +341,7 @@ const adminUpdateUser = async (req, res) => {
             await pool.request()
                 .input('ID', sql.Int, id)
                 .input('Email', sql.NVarChar, email)
-                .query('UPDATE Usuarios SET Email = @Email WHERE UsuarioID = @ID');
+                .query('UPDATE auth.Usuarios SET Email = @Email WHERE UsuarioID = @ID');
         }
 
         res.json({ message: 'Correo actualizado en SQL y Firebase' });
@@ -359,7 +359,7 @@ const deleteUserAuth = async (req, res) => {
         // A. Obtener el email del usuario antes de borrarlo
         const userResult = await pool.request()
             .input('ID', sql.Int, id)
-            .query('SELECT Email FROM Usuarios WHERE UsuarioID = @ID');
+            .query('SELECT Email FROM auth.Usuarios WHERE UsuarioID = @ID');
 
         if (userResult.recordset.length > 0) {
             const emailABorrar = userResult.recordset[0].Email;
@@ -377,7 +377,7 @@ const deleteUserAuth = async (req, res) => {
         // C. Borrar de SQL Server
         await pool.request()
             .input('ID', sql.Int, id)
-            .query('DELETE FROM Usuarios WHERE UsuarioID = @ID');
+            .query('DELETE FROM auth.Usuarios WHERE UsuarioID = @ID');
 
         res.json({ message: 'Usuario eliminado de SQL Server y Firebase' });
     } catch (error) {
@@ -393,7 +393,7 @@ const verifyPassword = async (req, res) => {
         const pool = await getConnection();
         const result = await pool.request()
             .input('id', sql.Int, usuarioId)
-            .query('SELECT PasswordHash FROM Usuarios WHERE UsuarioID = @id');
+            .query('SELECT PasswordHash FROM auth.Usuarios WHERE UsuarioID = @id');
 
         const user = result.recordset[0];
         if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
