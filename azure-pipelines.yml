@@ -1,0 +1,92 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+# 1. JOB PARA GATEWAY
+- job: Deploy_Gateway
+  steps:
+  - task: NodeTool@0
+    inputs: { versionSpec: '18.x' }
+  - script: |
+      cd sistema-medico-microservicios
+      cd backend
+      cd api-gateway
+      npm install
+    displayName: 'Build Gateway'
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'ConexionAzureApolo'
+      appName: 'apolo-gateway'
+      package: '$(System.DefaultWorkingDirectory)/sistema-medico-microservicios/backend/api-gateway'
+
+# 2. JOB PARA AUTH
+- job: Deploy_Auth
+  steps:
+  - task: NodeTool@0
+    inputs: { versionSpec: '18.x' }
+  - script: |
+      cd sistema-medico-microservicios
+      cd backend
+      cd auth-service
+      npm install
+    displayName: 'Build Auth'
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'ConexionAzureApolo'
+      appName: 'apolo-auth'
+      package: '$(System.DefaultWorkingDirectory)/sistema-medico-microservicios/backend/auth-service'
+
+# REPETIR ESTE BLOQUE PARA CORE, CLINICAL Y CHAT cambiando 'appName' y 'cd carpeta'
+# 3. JOB PARA CHAT
+- job: Deploy_Chat
+  steps:
+  - task: NodeTool@0
+    inputs: { versionSpec: '18.x' }
+  - script: |
+      cd sistema-medico-microservicios
+      cd backend
+      cd chat-service
+      npm install
+    displayName: 'Build Chat'
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'ConexionAzureApolo'
+      appName: 'apolo-chat'
+      package: '$(System.DefaultWorkingDirectory)/sistema-medico-microservicios/backend/chat-service'
+
+# 4. JOB PARA CORE
+- job: Deploy_Core
+  steps:
+  - task: NodeTool@0
+    inputs: { versionSpec: '18.x' }
+  - script: |
+      cd sistema-medico-microservicios
+      cd backend
+      cd core-service
+      npm install
+    displayName: 'Build Core'
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'ConexionAzureApolo'
+      appName: 'apolo-core'
+      package: '$(System.DefaultWorkingDirectory)/sistema-medico-microservicios/backend/core-service'
+
+# 5. JOB PARA CLINICAL
+- job: Deploy_Clinical
+  steps:
+  - task: NodeTool@0
+    inputs: { versionSpec: '18.x' }
+  - script: |
+      cd sistema-medico-microservicios
+      cd backend
+      cd clinical-service
+      npm install
+    displayName: 'Build Clinical'
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'ConexionAzureApolo'
+      appName: 'apolo-clinical'
+      package: '$(System.DefaultWorkingDirectory)/sistema-medico-microservicios/backend/clinical-service'
