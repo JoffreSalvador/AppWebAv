@@ -38,4 +38,4 @@ Desktop.ini
 # --- Varios ---
 *.bak
 *.tmp
-sistema-medico-microservicios/auth-service/src/config/firebase-admin-key.json
+firebase-admin-key.json

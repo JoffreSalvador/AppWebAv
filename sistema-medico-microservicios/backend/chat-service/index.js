@@ -2,13 +2,25 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
-const jwt = require('jsonwebtoken'); // Para validar el socket
+const jwt = require('jsonwebtoken');
 const chatRoutes = require('./src/routes/chatRoutes');
 const chatRepo = require('./src/repositories/chatRepository');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+// --- CONFIGURACIÓN SEGURA DE CORS ---
+const corsOptions = {
+    // Permitimos Gateway (3000) y Frontend (5173)
+    origin: [
+        'http://localhost:3000', 'http://127.0.0.1:3000', 
+        'http://localhost:5173', 'http://127.0.0.1:5173'
+    ], 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], 
+    allowedHeaders: ['Content-Type', 'Authorization'], 
+    credentials: true 
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // RUTAS HTTP (Historial)

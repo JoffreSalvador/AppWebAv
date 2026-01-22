@@ -2,12 +2,12 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAle2Gi-xkLph2HxlIMW3Z_hB3KA_5k3PA",
-  authDomain: "apolo-a6108.firebaseapp.com",
-  projectId: "apolo-a6108",
-  storageBucket: "apolo-a6108.firebasestorage.app",
-  messagingSenderId: "669021643236",
-  appId: "1:669021643236:web:984f8c2c5be11f5fb6a7f1"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 const app = initializeApp(firebaseConfig);
