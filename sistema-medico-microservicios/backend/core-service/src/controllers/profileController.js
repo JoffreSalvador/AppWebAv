@@ -65,7 +65,7 @@ const createPacienteProfile = async (req, res) => {
             fechaNacimiento, 
             identificacion, 
             telefono,
-            medicoId: medicoIdAsignado // Se asigna el ID 6 (o el que encuentre)
+            medicoId: medicoIdAsignado
         });
 
         await registrarLog({
@@ -123,7 +123,7 @@ const updatePacienteProfile = async (req, res) => {
         const rolEditor = req.user.rol;
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
-        // 1. SNAPSHOT: Obtener los datos VIEJOS antes de editar
+        // 1. SNAPSHOT
         const pool = await getConnection();
         const oldDataRes = await pool.request()
             .input('ID', sql.Int, id)
@@ -145,7 +145,7 @@ const updatePacienteProfile = async (req, res) => {
         }
 
         await registrarLog({
-            nivel: 'WARNING', // Warning porque editar datos es sensible
+            nivel: 'WARNING',
             servicio: 'CoreService',
             usuarioId: editorId,
             rolId: rolEditor,

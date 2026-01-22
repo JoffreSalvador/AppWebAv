@@ -5,7 +5,7 @@ const saveMessage = async (data) => {
         const pool = await getConnection();
         await pool.request()
             .input('UsuarioID', sql.Int, data.userId) 
-            .input('ReceptorID', sql.Int, data.receptorId) // <--- NUEVO
+            .input('ReceptorID', sql.Int, data.receptorId)
             .input('NombreUsuario', sql.NVarChar, data.username)
             .input('Contenido', sql.NVarChar, data.text)
             .input('RolID', sql.Int, data.rol) 

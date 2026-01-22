@@ -41,8 +41,6 @@ const updateConsulta = async (id, data) => {
 
 const deleteConsulta = async (id) => {
     const pool = await getConnection();
-    // Opcional: Borrar exámenes hijos primero si no hay CASCADE definido en SQL
-    // await pool.request().input('ID', sql.Int, id).query('DELETE FROM Examenes WHERE ConsultaID = @ID');
     return await pool.request().input('ID', sql.Int, id).query('DELETE FROM Consultas WHERE ConsultaID = @ID');
 };
 
@@ -104,8 +102,8 @@ const getExamenesByPaciente = async (pacienteId) => {
         .query('SELECT * FROM Examenes WHERE PacienteID = @PacienteID ORDER BY FechaRealizacion DESC');
     return result.recordset.map(e => ({
         ...e,
-        RutaArchivo: decrypt(e.RutaArchivo), // DESCIFRAR
-        ObservacionesResultados: decrypt(e.ObservacionesResultados) // DESCIFRAR
+        RutaArchivo: decrypt(e.RutaArchivo),
+        ObservacionesResultados: decrypt(e.ObservacionesResultados)
     }));
 };
 
