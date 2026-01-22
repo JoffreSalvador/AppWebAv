@@ -7,8 +7,16 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware de seguridad básica
-app.use(cors());
+// --- CONFIGURACIÓN SEGURA DE CORS ---
+const corsOptions = {
+    // Solo permitimos peticiones desde nuestro frontend
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Solo métodos necesarios
+    allowedHeaders: ['Content-Type', 'Authorization'], // Solo cabeceras permitidas
+    credentials: true // Si se usan cookies o sesiones
+};
+
+app.use(cors(corsOptions));
 //app.use(express.json());
 
 // Rutas de prueba para verificar que el Gateway vive

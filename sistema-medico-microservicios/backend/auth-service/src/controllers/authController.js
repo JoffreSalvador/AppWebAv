@@ -3,13 +3,20 @@ const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const userRepo = require('../repositories/userRepository');
-// CORRECCIÓN: Importamos getConnection y sql en una sola línea desde tu config
 const { getConnection, sql } = require('../config/db');
 const { registrarLog } = require('../utils/logger');
 const admin = require('firebase-admin');
 const serviceAccount = require('../config/firebase-admin-key.json');
 
 require('dotenv').config();
+
+// --- FUNCIÓN AUXILIAR DE SEGURIDAD ---
+// Elimina saltos de línea para evitar Log Injection
+const sanitizeInput = (input) => {
+    if (typeof input !== 'string') return input;
+    // Reemplaza saltos de línea con un espacio o nada
+    return input.replace(/[\n\r]/g, '_'); 
+};
 
 const resetPassword = async (req, res) => {
     // Quitamos 'currentPassword' de los datos recibidos
@@ -85,7 +92,6 @@ const register = async (req, res) => {
                 password: password, // Sincronizamos la clave
                 emailVerified: true // Marcamos como verificado para evitar problemas
             });
-            console.log(`Usuario ${email} creado con éxito en Firebase`);
         } catch (fbError) {
             // Si el error es que ya existe en Firebase, lo ignoramos y seguimos con SQL
             if (fbError.code !== 'auth/email-already-exists') {
@@ -125,7 +131,10 @@ const register = async (req, res) => {
 // Login
 const login = async (req, res) => {
     const { email, password } = req.body;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    // La IP viene de headers que pueden ser falsificados
+    let rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    // Aseguramos que sea string y limpiamos
+    const ip = sanitizeInput(String(rawIp));
 
     try {
         const pool = await getConnection();
@@ -133,8 +142,9 @@ const login = async (req, res) => {
 
         if (!userResult) {
             await registrarLog({
+                // nosemgrep: javascript.express.security.audit.log-injection
                 nivel: 'WARNING', servicio: 'AuthService', ip, accion: 'Login_Fallido',
-                detalles: { motivo: 'Usuario no encontrado', emailIntento: email }
+                detalles: { motivo: 'Usuario no encontrado', emailIntento: sanitizeInput(email) }
             });
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
