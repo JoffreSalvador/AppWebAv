@@ -17,12 +17,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-//app.use(express.json());
-
-// Rutas de prueba para verificar que el Gateway vive
-app.get('/', (req, res) => {
-    res.send('API Gateway Saludable - Sistema Médico');
-});
 
 // --- ENRUTAMIENTO DE MICROSERVICIOS ---
 
@@ -55,6 +49,7 @@ app.use('/api/chat', createProxyMiddleware({
     changeOrigin: true,
     pathRewrite: { '^/api/chat': '' },
 }));
+
 
 app.listen(PORT, () => {
     console.log(`Gateway corriendo en http://localhost:${PORT}`);

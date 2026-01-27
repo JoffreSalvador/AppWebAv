@@ -5,7 +5,7 @@ const { registrarLog } = require('../utils/logger');
 
 const getAllData = async (req, res) => {
     try {
-        // Ejecutamos las 3 consultas en paralelo para mayor velocidad
+        // Ejecutamos las 3 consultas en paralelo
         const [medicos, pacientes, auditoria] = await Promise.all([
             adminRepo.getAllMedicos(),
             adminRepo.getAllPacientes(),

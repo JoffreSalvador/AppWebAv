@@ -75,13 +75,12 @@ const deletePaciente = async (id) => {
         .input('ID', sql.Int, id)
         .query('SELECT UsuarioID FROM Pacientes WHERE PacienteID = @ID');
         
-    // Si el paciente ya no existe, salimos
     if (userRes.recordset.length === 0) return;
     
     const usuarioId = userRes.recordset[0].UsuarioID;
 
     // 2. Iniciamos una TRANSACCIÓN. 
-    // Esto asegura que se borre TODO o NADA. Si falla algo, no deja datos a medias.
+    // Esto asegura que se borre TODO o NADA
     const transaction = new sql.Transaction(pool);
     
     try {

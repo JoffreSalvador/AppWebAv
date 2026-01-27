@@ -46,7 +46,7 @@ const createPaciente = async (data) => {
         .input('Apellido', sql.NVarChar, data.apellido)
         .input('FechaNacimiento', sql.Date, data.fechaNacimiento)
         .input('Identificacion', sql.NVarChar, data.identificacion)
-        .input('TelefonoContacto', sql.NVarChar, data.telefono) // Aquí mapeamos data.telefono a la columna SQL
+        .input('TelefonoContacto', sql.NVarChar, data.telefono)
         .query(`
             INSERT INTO Pacientes (UsuarioID, MedicoID, Nombre, Apellido, FechaNacimiento, Identificacion, TelefonoContacto)
             VALUES (@UsuarioID, @MedicoID, @Nombre, @Apellido, @FechaNacimiento, @Identificacion, @TelefonoContacto)
@@ -83,7 +83,7 @@ const getPacienteByUsuarioId = async (usuarioId) => {
             JOIN Medicos m ON p.MedicoID = m.MedicoID
             WHERE p.UsuarioID = @UsuarioID
         `);
-    return result.recordset[0]; // Retorna el primer resultado o undefined
+    return result.recordset[0];
 };
 
 // Obtener lista de todos los médicos (para el dropdown de transferencia)
@@ -94,7 +94,7 @@ const getAllMedicos = async () => {
     return result.recordset;
 };
 
-// Actualizar datos del paciente (incluye reasignación de médico)
+// Actualizar datos del paciente
 const updatePaciente = async (id, data) => {
     const pool = await getConnection();
     const result = await pool.request()
@@ -141,7 +141,7 @@ const checkUniqueData = async (identificacion, licencia, excludeUserId = 0) => {
         return { exists: true, field: 'Identificación (Cédula)' };
     }
 
-    // 2. Verificar Licencia (Solo si se envió una y no es null/vacío)
+    // 2. Verificar Licencia
     if (licencia && licencia.trim() !== "") {
         const licCheck = await pool.request()
             .input('Licencia', sql.NVarChar, licencia)

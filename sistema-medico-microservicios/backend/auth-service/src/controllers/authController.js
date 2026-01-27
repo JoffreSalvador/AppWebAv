@@ -33,8 +33,6 @@ const resetPassword = async (req, res) => {
         const dbUser = result.recordset[0];
         if (!dbUser) return res.status(404).json({ message: "Usuario no encontrado" });
 
-        // --- ELIMINADO: El paso de validar la contraseña actual con bcrypt ---
-
         // 2. Generar el nuevo Hash para la nueva contraseña
         const salt = await bcrypt.genSalt(10);
         const newHash = await bcrypt.hash(newPassword, salt);
@@ -45,7 +43,7 @@ const resetPassword = async (req, res) => {
             .input('pass', sql.VarChar, newHash)
             .query('UPDATE Usuarios SET PasswordHash = @pass, IntentosFallidos = 0 WHERE Email = @email');
 
-        // Registro en Log (opcional)
+        // Registro en Log
         await registrarLog({
             nivel: 'INFO', servicio: 'AuthService', usuarioId: dbUser.UsuarioID,
             accion: 'Reset_Password_Exito', detalles: { motivo: 'Recuperación vía Firebase' }
@@ -62,8 +60,8 @@ const resetPassword = async (req, res) => {
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER, // Tu correo
-        pass: process.env.EMAIL_PASS  // Tu "Contraseña de aplicación" de Google
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS 
     }
 });
 
@@ -84,20 +82,17 @@ const register = async (req, res) => {
             return res.status(400).json({ message: 'El correo ya está registrado en el sistema' });
         }
 
-        // 2. CREAR USUARIO EN FIREBASE (Para que funcione Recuperar Contraseña)
-        // Lo hacemos en un try-catch interno para que, si falla Firebase, podamos manejarlo
+        // 2. CREAR USUARIO EN FIREBASE
         try {
             await admin.auth().createUser({
                 email: email,
-                password: password, // Sincronizamos la clave
-                emailVerified: true // Marcamos como verificado para evitar problemas
+                password: password,
+                emailVerified: true 
             });
         } catch (fbError) {
             // Si el error es que ya existe en Firebase, lo ignoramos y seguimos con SQL
             if (fbError.code !== 'auth/email-already-exists') {
                 console.error("Error inesperado en Firebase:", fbError);
-                // Si quieres ser estricto, puedes retornar error aquí. 
-                // Por ahora solo logueamos para no detener el registro en SQL.
             }
         }
 
@@ -313,7 +308,7 @@ const forgotPassword = async (req, res) => {
 
 const adminUpdateUser = async (req, res) => {
     const { id } = req.params;
-    const { email } = req.body; // Solo recibimos email
+    const { email } = req.body;
 
     try {
         const pool = await getConnection();
@@ -383,7 +378,7 @@ const deleteUserAuth = async (req, res) => {
 const verifyPassword = async (req, res) => {
     try {
         const { password } = req.body;
-        const usuarioId = req.user.id; // Obtenido del token por el middleware
+        const usuarioId = req.user.id; 
 
         const pool = await getConnection();
         const result = await pool.request()
@@ -405,7 +400,6 @@ const verifyPassword = async (req, res) => {
     }
 }
 
-// EXPORTS CORREGIDOS (Sin duplicados)
 module.exports = {
     register,
     login,

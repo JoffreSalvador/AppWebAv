@@ -19,7 +19,7 @@ const registerConsulta = async (req, res) => {
 
 const updateConsulta = async (req, res) => {
     const { id } = req.params;
-    const editorId = req.user.id; // Médico que edita
+    const editorId = req.user.id;
     
     try {
         // 1. OBTENER DATOS ANTES DE CAMBIAR (SNAPSHOT)
@@ -32,7 +32,7 @@ const updateConsulta = async (req, res) => {
 
         // 3. REGISTRAR AUDITORÍA (ANTES vs DESPUÉS)
         await registrarLog({
-            nivel: 'WARNING', // Warning porque alterar historia clínica es delicado
+            nivel: 'WARNING',
             servicio: 'ClinicalService',
             usuarioId: editorId,
             rolId: req.user.rol,
@@ -74,7 +74,7 @@ const deleteConsulta = async (req, res) => {
                     message: 'No se puede eliminar la consulta porque tiene exámenes asociados. Elimine los exámenes primero.' 
                 });
             }
-            throw sqlError; // Si es otro error, que lo atrape el catch general
+            throw sqlError;
         }
 
         // 3. LOG DETALLADO: Guardamos qué se borró exactamente
@@ -89,8 +89,8 @@ const deleteConsulta = async (req, res) => {
             ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
             accion: 'Eliminar_Consulta',
             detalles: { 
-                mensaje: `Se eliminó: ${resumen}`, // Mensaje legible
-                datosRecuperables: datosEliminados   // Objeto completo JSON por seguridad
+                mensaje: `Se eliminó: ${resumen}`,
+                datosRecuperables: datosEliminados
             }
         });
 
@@ -101,7 +101,7 @@ const deleteConsulta = async (req, res) => {
     }
 };
 
-// Obtener Historial (Consultas)
+// Obtener Historial
 const getHistoria = async (req, res) => {
     try {
         const { pacienteId } = req.params;
